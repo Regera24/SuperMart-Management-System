@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: identity-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/smms-identity-service}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:12345}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    jpa:
+      hibernate:
+        ddl-auto: update
+      properties:
+        hibernate:
+          dialect: org.hibernate.dialect.MySQLDialect
+    data:
+      redis:
+        host: ${SPRING_REDIS_HOST:localhost}
+        port: ${SPRING_REDIS_PORT:6379}
+
+app:
+  jwtExpirationMs: 200000
+  jwtSecret: ${JWT_SECRET:T7EOnmBnmqvRABNZf9TsmuHLyFmauuAV66Nd8OdaTlFLBTocK2nH0NKIcwLpjJAosgGs8tV2BuuIQ2doKjiFfA==}
+  jwtRefresh: ${JWT_REFRESH:T9EOnmBnmqvRABNZf9TsmuHLyFmauuAV66Nd8OdaTlFLBTocK2nH0NKIcwLpjJAosgGs8tV2BuuIQ2doKjiFfA==}
+  jwtRefreshExpirationMs: 200000000
