@@ -52,7 +52,6 @@ public class Customer {
 
     /**
      * Version field để hỗ trợ optimistic locking (tránh race khi nhiều request cập nhật points).
-     * Bạn có thể thay bằng pessimistic lock trong repository/service nếu cần.
      */
     @Version
     private Long version;

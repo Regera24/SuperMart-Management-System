@@ -1,47 +1,39 @@
 package mss.smms.inventory.exception;
 
-import lombok.RequiredArgsConstructor;
 import mss.smms.inventory.dto.response.ApiResponse;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import javax.naming.AuthenticationException;
-import java.io.EOFException;
-import java.text.ParseException;
+import java.util.stream.Collectors;
 
-@ControllerAdvice
-@RequiredArgsConstructor
+@RestControllerAdvice
 public class GlobalExceptionHandler {
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<ApiResponse<Void>> hanldeRuntimeException(RuntimeException e) {
-        ApiResponse<Void> apiResponse = new ApiResponse<>();
-        apiResponse.setMessage(e.getMessage());
-        apiResponse.setCode(400);
-        return ResponseEntity.status(400).body(apiResponse);
+
+    @ExceptionHandler(AppException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAppException(AppException ex) {
+        ErrorCode ec = ex.getErrorCode();
+        return ResponseEntity.status(ec.getHttpStatusCode())
+                .body(ApiResponse.<Void>builder()
+                        .code(ec.getCode())
+                        .message(ec.getMessage())
+                        .build());
     }
 
-    @ExceptionHandler(ParseException.class)
-    public ResponseEntity<ApiResponse<Void>> hanldeParseException(ParseException e) {
-        ApiResponse<Void> apiResponse = new ApiResponse<>();
-        apiResponse.setMessage(e.getMessage());
-        apiResponse.setCode(400);
-        return ResponseEntity.status(400).body(apiResponse);
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
+        String msg = ex.getBindingResult().getFieldErrors().stream()
+                .map(e -> e.getField() + ": " + e.getDefaultMessage())
+                .collect(Collectors.joining(", "));
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.<Void>builder().code(400).message(msg).build());
     }
 
-    @ExceptionHandler(EOFException.class)
-    public ResponseEntity<ApiResponse<Void>> hanldeEOFException(EOFException e) {
-        ApiResponse<Void> apiResponse = new ApiResponse<>();
-        apiResponse.setMessage(e.getMessage());
-        apiResponse.setCode(400);
-        return ResponseEntity.status(400).body(apiResponse);
-    }
-
-    @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<ApiResponse<Void>> hanldeAuthenticationException(AuthenticationException e) {
-        ApiResponse<Void> apiResponse = new ApiResponse<>();
-        apiResponse.setMessage(e.getMessage());
-        apiResponse.setCode(401);
-        return ResponseEntity.status(401).body(apiResponse);
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Void>> handleGeneral(Exception ex) {
+        return ResponseEntity.status(500)
+                .body(ApiResponse.<Void>builder()
+                        .code(500).message("Internal server error: " + ex.getMessage()).build());
     }
 }

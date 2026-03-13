@@ -6,14 +6,10 @@ import org.springframework.http.HttpStatusCode;
 
 @Getter
 public enum ErrorCode {
-    USER_EXISTED(400,"User existed",HttpStatus.BAD_REQUEST),
-    USER_NOT_EXISTED(400,"User not existed",HttpStatus.NOT_FOUND),
-    PASSWORD_INVALID(400,"Password must be at least {min}",HttpStatus.BAD_REQUEST),
-    KEY_INVALID(400,"Key invalid",HttpStatus.BAD_REQUEST),
-    UNAUTHORIZED(401,"Unauthorized",HttpStatus.UNAUTHORIZED),
-    FORBIDDEN(403,"Forbidden",HttpStatus.FORBIDDEN),
-    NOT_FOUND(404,"Not Found",HttpStatus.NOT_FOUND),
-    UNCATEGORIZED(500,"Error not defined",HttpStatus.INTERNAL_SERVER_ERROR),
+    NOT_FOUND(404, "Not Found", HttpStatus.NOT_FOUND),
+    UNAUTHORIZED(401, "Unauthorized", HttpStatus.UNAUTHORIZED),
+    FORBIDDEN(403, "Forbidden", HttpStatus.FORBIDDEN),
+    UNCATEGORIZED(500, "Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR),
     ;
     private final int code;
     private final String messageKey;
@@ -25,7 +21,5 @@ public enum ErrorCode {
         this.httpStatusCode = httpStatusCode;
     }
 
-    public String getMessage() {
-        return messageKey;
-    }
+    public String getMessage() { return messageKey; }
 }
