@@ -1,0 +1,17 @@
+target/
+*.jar
+*.war
+.idea/
+*.iml
+.vscode/
+*.class
+.git/
+.gitignore
+.DS_Store
+Thumbs.db
+**/surefire-reports/
+**/failsafe-reports/
+.mvn/wrapper/maven-wrapper.jar
+*.log
+logs/
+reports/

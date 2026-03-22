@@ -303,6 +303,26 @@ services:
       eureka-server:
         condition: service_healthy
 
+  # ─────────────────────────── FRONTEND ──────────────────
+
+  smms-frontend:
+    build:
+      context: ./smms-frontend
+      dockerfile: Dockerfile
+    container_name: smms-frontend
+    image: smms/frontend:latest
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+
 # ─────────────────────────── VOLUMES ───────────────────────────
 
 volumes:
