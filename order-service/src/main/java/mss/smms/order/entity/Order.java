@@ -58,6 +58,12 @@ public class Order {
     @Column(name = "note", columnDefinition = "text")
     private String note;
 
+    @Column(name = "warehouse_id")
+    private Long warehouseId;
+
+    @Column(name = "saga_id", columnDefinition = "uuid")
+    private UUID sagaId;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<OrderItem> items;
 

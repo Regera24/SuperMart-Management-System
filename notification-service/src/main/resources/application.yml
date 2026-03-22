@@ -8,6 +8,22 @@ spring:
     mongodb:
       uri: ${MONGO_URI:mongodb://localhost:27017/smms_notification_service}
 
+  # ── Kafka Consumer (order events) ──
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: notification-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+  # ── Mail Configuration ──
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: keepme2401@gmail.com
+    password: tccpotdwysrognyx
+
 eureka:
   client:
     service-url:
@@ -16,7 +32,7 @@ eureka:
     prefer-ip-address: true
 
 app:
-  jwtSecret: ${JWT_SECRET:thisisasecretkeyforhmaasha256algorithmatleast32bytes}
+  jwtSecret: ${JWT_SECRET:T7EOnmBnmqvRABNZf9TsmuHLyFmauuAV66Nd8OdaTlFLBTocK2nH0NKIcwLpjJAosgGs8tV2BuuIQ2doKjiFfA==}
 
 management:
   endpoints:

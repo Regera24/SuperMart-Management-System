@@ -54,7 +54,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                     loginAttemptService.loginFailed(request.getUsername());
                     return new AppException(ErrorCode.INVALID_CREDENTIALS);
                 });
-
+        System.out.println(passwordEncoder.encode(request.getPassword()));
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             loginAttemptService.loginFailed(request.getUsername());
             throw new AppException(ErrorCode.INVALID_CREDENTIALS);

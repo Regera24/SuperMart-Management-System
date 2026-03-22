@@ -18,6 +18,15 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
+  # ── Kafka Configuration ──
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: inventory-service-group
+      auto-offset-reset: earliest
+    producer:
+      acks: all
+
 eureka:
   client:
     service-url:
@@ -26,7 +35,7 @@ eureka:
     prefer-ip-address: true
 
 app:
-  jwtSecret: ${JWT_SECRET:thisisasecretkeyforhmaasha256algorithmatleast32bytes}
+  jwtSecret: ${JWT_SECRET:T7EOnmBnmqvRABNZf9TsmuHLyFmauuAV66Nd8OdaTlFLBTocK2nH0NKIcwLpjJAosgGs8tV2BuuIQ2doKjiFfA==}
 
 management:
   endpoints:
@@ -40,3 +49,4 @@ management:
 logging:
   level:
     mss.smms.inventory: DEBUG
+    org.apache.kafka: WARN

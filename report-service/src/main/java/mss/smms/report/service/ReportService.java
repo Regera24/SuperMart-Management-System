@@ -10,4 +10,5 @@ public interface ReportService {
     ReportResponse getById(Long id);
     Page<ReportResponse> getAll(Pageable pageable);
     Page<ReportResponse> getByRequester(Long accountId, Pageable pageable);
+    String getReportFilePath(Long id);
 }

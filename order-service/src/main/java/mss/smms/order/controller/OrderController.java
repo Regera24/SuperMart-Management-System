@@ -29,8 +29,8 @@ public class OrderController {
             Authentication authentication) {
         String userId = authentication.getName();
         OrderResponse order = orderService.checkout(request, UUID.fromString(userId));
-        return ResponseEntity.status(201).body(ApiResponse.<OrderResponse>builder()
-                .code(201).message("Order created").data(order).build());
+        return ResponseEntity.status(202).body(ApiResponse.<OrderResponse>builder()
+                .code(202).message("Order created, processing...").data(order).build());
     }
 
     @GetMapping

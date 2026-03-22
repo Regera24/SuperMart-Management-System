@@ -46,7 +46,6 @@ public class AccountServiceImpl implements AccountService {
         // Auto-generate a random password
         String rawPassword = generatePassword(12);
         log.info("[DEV ONLY] Generated password for {}: {}", request.getUsername(), rawPassword);
-        // TODO: send credentials to request.getEmail() via JavaMailSender
 
         User user = User.builder()
                 .username(request.getUsername())

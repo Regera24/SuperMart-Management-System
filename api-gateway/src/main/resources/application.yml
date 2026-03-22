@@ -1,2 +1,192 @@
 server:
   port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          # ── Routes ──
+          routes:
+            # Identity Service
+            - id: identity-auth
+              uri: lb://identity-service
+              predicates:
+                - Path=/auth/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: identityServiceCB
+                    fallbackUri: forward:/fallback/identity
+
+            - id: identity-users
+              uri: lb://identity-service
+              predicates:
+                - Path=/users/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: identityServiceCB
+                    fallbackUri: forward:/fallback/identity
+
+            # Product Service
+            - id: product-products
+              uri: lb://product-service
+              predicates:
+                - Path=/products/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: productServiceCB
+                    fallbackUri: forward:/fallback/product
+
+            - id: product-categories
+              uri: lb://product-service
+              predicates:
+                - Path=/categories/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: productServiceCB
+                    fallbackUri: forward:/fallback/product
+
+            # Inventory Service
+            - id: inventory
+              uri: lb://inventory-service
+              predicates:
+                - Path=/inventory/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: inventoryServiceCB
+                    fallbackUri: forward:/fallback/inventory
+
+            # Order Service
+            - id: order
+              uri: lb://order-service
+              predicates:
+                - Path=/orders/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: orderServiceCB
+                    fallbackUri: forward:/fallback/order
+
+            # Customer Service
+            - id: customer
+              uri: lb://customer-service
+              predicates:
+                - Path=/customers/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: customerServiceCB
+                    fallbackUri: forward:/fallback/customer
+
+            # Staff Service
+            - id: staff
+              uri: lb://staff-service
+              predicates:
+                - Path=/api/v1/staff/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: staffServiceCB
+                    fallbackUri: forward:/fallback/staff
+
+            # Notification Service
+            - id: notification
+              uri: lb://notification-service
+              predicates:
+                - Path=/api/v1/notifications/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: notificationServiceCB
+                    fallbackUri: forward:/fallback/notification
+
+            # Report Service
+            - id: report
+              uri: lb://report-service
+              predicates:
+                - Path=/api/v1/reports/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: reportServiceCB
+                    fallbackUri: forward:/fallback/report
+
+          # Default filters applied to all routes
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+
+# ── JWT Secret (same as identity-service) ──
+app:
+  jwtSecret: ${JWT_SECRET:T7EOnmBnmqvRABNZf9TsmuHLyFmauuAV66Nd8OdaTlFLBTocK2nH0NKIcwLpjJAosgGs8tV2BuuIQ2doKjiFfA==}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+
+# ── Resilience4j Configuration for Gateway ──
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        register-health-indicator: true
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+    instances:
+      identityServiceCB:
+        base-config: default
+      productServiceCB:
+        base-config: default
+      inventoryServiceCB:
+        base-config: default
+      orderServiceCB:
+        base-config: default
+      customerServiceCB:
+        base-config: default
+      staffServiceCB:
+        base-config: default
+      notificationServiceCB:
+        base-config: default
+      reportServiceCB:
+        base-config: default
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 4s
+        cancel-running-future: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway,circuitbreakers
+  endpoint:
+    gateway:
+      enabled: true
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.security: DEBUG
+    io.github.resilience4j: DEBUG

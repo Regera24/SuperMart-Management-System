@@ -18,6 +18,15 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
+  # ── Kafka Configuration ──
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: order-service-group
+      auto-offset-reset: earliest
+    producer:
+      acks: all
+
 eureka:
   client:
     service-url:
@@ -26,7 +35,7 @@ eureka:
     prefer-ip-address: true
 
 app:
-  jwtSecret: ${JWT_SECRET:thisisasecretkeyforhmaasha256algorithmatleast32bytes}
+  jwtSecret: ${JWT_SECRET:T7EOnmBnmqvRABNZf9TsmuHLyFmauuAV66Nd8OdaTlFLBTocK2nH0NKIcwLpjJAosgGs8tV2BuuIQ2doKjiFfA==}
 
 feign:
   client:
@@ -34,16 +43,63 @@ feign:
       default:
         connectTimeout: 5000
         readTimeout: 5000
+  circuitbreaker:
+    enabled: true
+
+# ── Resilience4j Configuration (kept for Feign read operations) ──
+resilience4j:
+  circuitbreaker:
+    instances:
+      inventoryService:
+        register-health-indicator: true
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        record-exceptions:
+          - java.io.IOException
+          - java.net.ConnectException
+          - java.net.SocketTimeoutException
+          - feign.FeignException
+          - feign.RetryableException
+        ignore-exceptions:
+          - mss.smms.order.exception.AppException
+  retry:
+    instances:
+      inventoryService:
+        max-attempts: 3
+        wait-duration: 500ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.io.IOException
+          - java.net.ConnectException
+          - feign.RetryableException
+        ignore-exceptions:
+          - mss.smms.order.exception.AppException
+  timelimiter:
+    instances:
+      inventoryService:
+        timeout-duration: 3s
+        cancel-running-future: true
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,circuitbreakers,retries
   endpoint:
     health:
       show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
 
 logging:
   level:
     mss.smms.order: DEBUG
+    io.github.resilience4j: DEBUG
+    org.apache.kafka: WARN

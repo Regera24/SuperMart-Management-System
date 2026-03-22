@@ -24,7 +24,7 @@ public class User {
     @Column(name = "username", unique = true, nullable = false, columnDefinition = "VARCHAR(255)")
     String username;
 
-    @Column(name = "password", columnDefinition = "VARCHAR(50)")
+    @Column(name = "password", columnDefinition = "VARCHAR(100)")
     String password;
 
     @Column(name = "email", columnDefinition = "VARCHAR(50)")

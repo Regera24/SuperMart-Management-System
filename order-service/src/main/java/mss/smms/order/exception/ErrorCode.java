@@ -11,6 +11,9 @@ public enum ErrorCode {
     ORDER_ALREADY_CANCELLED(400, "Order is already cancelled", HttpStatus.BAD_REQUEST),
     STOCK_INSUFFICIENT(400, "Insufficient stock for one or more items", HttpStatus.BAD_REQUEST),
     PAYMENT_FAILED(402, "Payment processing failed", HttpStatus.PAYMENT_REQUIRED),
+    INVENTORY_SERVICE_UNAVAILABLE(503, "Inventory service is temporarily unavailable. Please try again later.", HttpStatus.SERVICE_UNAVAILABLE),
+    ORDER_SAGA_IN_PROGRESS(409, "Order saga is already in progress", HttpStatus.CONFLICT),
+    ORDER_ALREADY_COMPLETED(400, "Order is already completed", HttpStatus.BAD_REQUEST),
     UNAUTHORIZED(401, "Unauthorized", HttpStatus.UNAUTHORIZED),
     FORBIDDEN(403, "Forbidden", HttpStatus.FORBIDDEN),
     ;
