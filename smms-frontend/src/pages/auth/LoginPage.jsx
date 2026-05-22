@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [showForgotMessage, setShowForgotMessage] = useState(false)
   const { login } = useAuth()
   const { theme, setTheme } = useTheme()
   const navigate = useNavigate()
@@ -161,10 +162,16 @@ export default function LoginPage() {
                 />
                 Ghi nhớ đăng nhập
               </label>
-              <button type="button" className="text-sm text-primary hover:underline">
+              <button type="button" className="text-sm text-primary hover:underline" onClick={() => setShowForgotMessage(!showForgotMessage)}>
                 Quên mật khẩu?
               </button>
             </div>
+
+            {showForgotMessage && (
+              <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-sm text-amber-600 dark:text-amber-400 text-center">
+                Hãy liên hệ với quản lý của bạn để reset mật khẩu
+              </div>
+            )}
 
             <Button
               type="submit"

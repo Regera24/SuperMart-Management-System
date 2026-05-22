@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency, safeNum } from "@/lib/utils"
 import { AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
-import { DollarSign, ShoppingCart, Package, Users, TrendingUp, TrendingDown, AlertTriangle, ArrowRight } from "lucide-react"
+import { DollarSign, ShoppingCart, Package, Users, TrendingUp, TrendingDown, AlertTriangle, ArrowRight, Clock, CalendarClock } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/contexts/AuthContext"
 import * as orderApi from "@/api/orderApi"
 import * as productApi from "@/api/productApi"
 import * as customerApi from "@/api/customerApi"
@@ -13,11 +14,24 @@ import * as inventoryApi from "@/api/inventoryApi"
 
 const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"]
 
-
+// Helper: compute trend % between today and yesterday
+function calcTrend(today, yesterday) {
+  const t = safeNum(today)
+  const y = safeNum(yesterday)
+  if (y === 0) return t > 0 ? "+100%" : "0%"
+  const pct = ((t - y) / y) * 100
+  return (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%"
+}
+function isTrendUp(today, yesterday) {
+  return safeNum(today) >= safeNum(yesterday)
+}
 
 export default function DashboardPage() {
   const navigate = useNavigate()
+  const { hasAnyRole } = useAuth()
+  const isManager = hasAnyRole("ADMIN", "MANAGER")
   const [kpi, setKpi] = useState({ revenue: 0, orders: 0, products: 0, customers: 0 })
+  const [trends, setTrends] = useState({ revenueTrend: "0%", revenueUp: true, ordersTrend: "0%", ordersUp: true })
   const [revenueChart, setRevenueChart] = useState([])
   const [categoryChart, setCategoryChart] = useState([])
   const [lowStock, setLowStock] = useState([])
@@ -28,25 +42,61 @@ export default function DashboardPage() {
     async function fetchDashboard() {
       setLoading(true)
       try {
-        const [ordersRes, productsRes, customersRes, lowStockRes] = await Promise.allSettled([
+        const [statsRes, ordersRes, productsRes, customersRes, lowStockRes, categoriesRes] = await Promise.allSettled([
+          orderApi.getOrderStatistics(),
           orderApi.getOrders({ page: 0, size: 5 }),
           productApi.getProducts({ page: 0, size: 1 }),
           customerApi.getCustomers({ page: 0, size: 1 }),
           inventoryApi.getLowStock(10),
+          productApi.getRootCategories(),
         ])
 
+        const statsData = statsRes.status === "fulfilled" ? statsRes.value : null
         const ordersData = ordersRes.status === "fulfilled" ? ordersRes.value : null
         const productsData = productsRes.status === "fulfilled" ? productsRes.value : null
         const customersData = customersRes.status === "fulfilled" ? customersRes.value : null
         const lowStockData = lowStockRes.status === "fulfilled" ? lowStockRes.value : null
+        const categoriesData = categoriesRes.status === "fulfilled" ? categoriesRes.value : null
 
-        if (ordersData || productsData || customersData) {
-          setKpi({
-            revenue: ordersData?.content?.reduce((sum, o) => sum + safeNum(o.finalAmount ?? o.totalAmount), 0) || 0,
-            orders: ordersData?.totalElements || 0,
-            products: productsData?.totalElements || 0,
-            customers: customersData?.totalElements || 0,
+        // KPI: use statistics endpoint for revenue & order count
+        setKpi({
+          revenue: safeNum(statsData?.todayRevenue),
+          orders: safeNum(statsData?.totalOrders),
+          products: productsData?.totalElements || 0,
+          customers: customersData?.totalElements || 0,
+        })
+
+        // Trend: compute from today vs yesterday
+        setTrends({
+          revenueTrend: calcTrend(statsData?.todayRevenue, statsData?.yesterdayRevenue),
+          revenueUp: isTrendUp(statsData?.todayRevenue, statsData?.yesterdayRevenue),
+          ordersTrend: calcTrend(statsData?.todayOrders, statsData?.yesterdayOrders),
+          ordersUp: isTrendUp(statsData?.todayOrders, statsData?.yesterdayOrders),
+        })
+
+        // Revenue chart: last 7 days from backend
+        if (statsData?.dailyRevenue?.length) {
+          setRevenueChart(statsData.dailyRevenue.map(d => ({
+            name: d.name,
+            revenue: safeNum(d.revenue),
+          })))
+        }
+
+        // Category chart: compute from products + categories
+        if (productsRes.status === "fulfilled" && categoriesData?.length) {
+          // Need all products for category counting
+          const allProductsRes = await productApi.getProducts({ page: 0, size: 1000 })
+          const products = allProductsRes?.content || []
+          const catMap = Object.fromEntries(categoriesData.map(c => [c.id, c.name]))
+          const catCount = {}
+          products.forEach(p => {
+            (p.categoryIds || []).forEach(cid => {
+              const name = catMap[cid] || "Khác"
+              catCount[name] = (catCount[name] || 0) + 1
+            })
           })
+          const catData = Object.entries(catCount).map(([name, value]) => ({ name, value }))
+          if (catData.length > 0) setCategoryChart(catData)
         }
 
         if (ordersData?.content?.length) setRecentOrders(ordersData.content.slice(0, 5))
@@ -74,14 +124,66 @@ export default function DashboardPage() {
   const getLowQty = (s) => s.quantityOnHand ?? s.quantity ?? 0
 
   const kpis = [
-    { title: "Doanh thu hôm nay", value: formatCurrency(kpi.revenue), icon: DollarSign, trend: "+12.5%", up: true, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-    { title: "Đơn hàng", value: safeNum(kpi.orders).toLocaleString(), icon: ShoppingCart, trend: "+8.2%", up: true, color: "text-blue-500", bg: "bg-blue-500/10" },
-    { title: "Sản phẩm", value: safeNum(kpi.products).toLocaleString(), icon: Package, trend: "+3", up: true, color: "text-amber-500", bg: "bg-amber-500/10" },
-    { title: "Khách hàng", value: safeNum(kpi.customers).toLocaleString(), icon: Users, trend: "+5.1%", up: true, color: "text-purple-500", bg: "bg-purple-500/10" },
+    { title: "Doanh thu hôm nay", value: formatCurrency(kpi.revenue), icon: DollarSign, trend: trends.revenueTrend, up: trends.revenueUp, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+    { title: "Đơn hàng", value: safeNum(kpi.orders).toLocaleString(), icon: ShoppingCart, trend: trends.ordersTrend, up: trends.ordersUp, color: "text-blue-500", bg: "bg-blue-500/10" },
+    { title: "Sản phẩm", value: safeNum(kpi.products).toLocaleString(), icon: Package, trend: null, up: true, color: "text-amber-500", bg: "bg-amber-500/10" },
+    { title: "Khách hàng", value: safeNum(kpi.customers).toLocaleString(), icon: Users, trend: null, up: true, color: "text-purple-500", bg: "bg-purple-500/10" },
   ]
 
   return (
     <div className="space-y-6">
+      {!isManager ? (
+        /* ── Employee welcome view ── */
+        <>
+          <div>
+            <h1 className="text-2xl font-bold">Chào mừng bạn đến với SMMS!</h1>
+            <p className="text-sm text-muted-foreground mt-1">Sử dụng menu bên trái để truy cập các chức năng của bạn.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate("/my-attendance")}>
+              <CardContent className="p-5">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-xl p-3 bg-emerald-500/10">
+                    <Clock className="h-6 w-6 text-emerald-500" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Chấm công</p>
+                    <p className="text-xs text-muted-foreground">Check-in / Check-out & xem lịch sử</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate("/my-attendance")}>
+              <CardContent className="p-5">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-xl p-3 bg-blue-500/10">
+                    <CalendarClock className="h-6 w-6 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Lịch ca & Đơn từ</p>
+                    <p className="text-xs text-muted-foreground">Xem lịch ca làm & gửi đơn nghỉ phép</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => { navigate("/my-attendance"); setTimeout(() => document.querySelector('[value="salary"]')?.click(), 100) }}>
+              <CardContent className="p-5">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-xl p-3 bg-purple-500/10">
+                    <DollarSign className="h-6 w-6 text-purple-500" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Xem lương</p>
+                    <p className="text-xs text-muted-foreground">Thông tin lương & lịch sử nhận lương</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      ) : (
+        /* ── Manager/Admin statistics view ── */
+        <>
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold">Tổng quan</h1><p className="text-sm text-muted-foreground">Xin chào! Đây là tổng quan hoạt động hôm nay.</p></div>
       </div>
@@ -95,11 +197,13 @@ export default function DashboardPage() {
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">{k.title}</p>
                   <p className="text-2xl font-bold">{k.value}</p>
-                  <div className="flex items-center gap-1 text-xs">
-                    {k.up ? <TrendingUp className="h-3 w-3 text-emerald-500" /> : <TrendingDown className="h-3 w-3 text-red-500" />}
-                    <span className={k.up ? "text-emerald-500" : "text-red-500"}>{k.trend}</span>
-                    <span className="text-muted-foreground">so với hôm qua</span>
-                  </div>
+                  {k.trend !== null && (
+                    <div className="flex items-center gap-1 text-xs">
+                      {k.up ? <TrendingUp className="h-3 w-3 text-emerald-500" /> : <TrendingDown className="h-3 w-3 text-red-500" />}
+                      <span className={k.up ? "text-emerald-500" : "text-red-500"}>{k.trend}</span>
+                      <span className="text-muted-foreground">so với hôm qua</span>
+                    </div>
+                  )}
                 </div>
                 <div className={`rounded-xl p-3 ${k.bg}`}><k.icon className={`h-6 w-6 ${k.color}`} /></div>
               </div>
@@ -134,14 +238,18 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-lg">Danh mục bán chạy</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie data={categoryChart} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" label={({ name, percent }) => `${name} ${(safeNum(percent) * 100).toFixed(0)}%`}>
-                  {categoryChart.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            {categoryChart.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie data={categoryChart} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" label={({ name, percent }) => `${name} ${(safeNum(percent) * 100).toFixed(0)}%`}>
+                    {categoryChart.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-sm text-muted-foreground">Chưa có dữ liệu danh mục</div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -170,6 +278,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ))}
+              {recentOrders.length === 0 && <p className="p-5 text-sm text-muted-foreground text-center">Chưa có đơn hàng</p>}
             </div>
           </CardContent>
         </Card>
@@ -197,6 +306,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+      </>)}
     </div>
   )
 }
