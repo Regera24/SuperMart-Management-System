@@ -11,13 +11,13 @@ INSERT INTO departments (id, name, description) VALUES
 (3, 'Kho vận',          'Quản lý kho hàng, nhập xuất'),
 (4, 'Chăm sóc KH',     'Hỗ trợ và chăm sóc khách hàng');
 
--- account_id maps: 1→admin, 2→manager_huy, 3→cashier_lan, 4→cashier_tuan, 5→manager_mai
+-- account_id maps to identity-service user.id (UUID)
 INSERT INTO employees (id, account_id, full_name, phone, email, address, tax_code, bank_account_number, base_salary, department_id) VALUES
-(1, 1, 'Nguyễn Admin',      '0901000001', 'admin@supermart.vn',       '1 Pasteur, Q.1, TP.HCM',      '8001234567', '19001001001', 30000000.00, 1),
-(2, 2, 'Trần Văn Huy',      '0901000002', 'huy.manager@supermart.vn', '22 Lê Lợi, Q.1, TP.HCM',      '8001234568', '19001001002', 18000000.00, 1),
-(3, 3, 'Lê Thị Lan',        '0901000003', 'lan.cashier@supermart.vn', '45 Nguyễn Trãi, Q.5, TP.HCM', '8001234569', '19001001003', 10000000.00, 2),
-(4, 4, 'Phạm Minh Tuấn',    '0901000004', 'tuan.cashier@supermart.vn','78 CMT8, Q.3, TP.HCM',         '8001234570', '19001001004', 10000000.00, 2),
-(5, 5, 'Đỗ Thị Mai',        '0901000005', 'mai.manager@supermart.vn', '12 Hai Bà Trưng, Q.1, TP.HCM','8001234571', '19001001005', 18000000.00, 3);
+(1, '550e8400-e29b-41d4-a716-446655440001', 'Nguyễn Admin',      '0901000001', 'admin@supermart.vn',       '1 Pasteur, Q.1, TP.HCM',      '8001234567', '19001001001', 30000000.00, 1),
+(2, '550e8400-e29b-41d4-a716-446655440002', 'Trần Văn Huy',      '0901000002', 'huy.manager@supermart.vn', '22 Lê Lợi, Q.1, TP.HCM',      '8001234568', '19001001002', 18000000.00, 1),
+(3, '550e8400-e29b-41d4-a716-446655440003', 'Lê Thị Lan',        '0901000003', 'lan.cashier@supermart.vn', '45 Nguyễn Trãi, Q.5, TP.HCM', '8001234569', '19001001003', 10000000.00, 2),
+(4, '550e8400-e29b-41d4-a716-446655440004', 'Phạm Minh Tuấn',    '0901000004', 'tuan.cashier@supermart.vn','78 CMT8, Q.3, TP.HCM',         '8001234570', '19001001004', 10000000.00, 2),
+(5, '550e8400-e29b-41d4-a716-446655440005', 'Đỗ Thị Mai',        '0901000005', 'mai.manager@supermart.vn', '12 Hai Bà Trưng, Q.1, TP.HCM','8001234571', '19001001005', 18000000.00, 3);
 
 INSERT INTO shifts (id, shift_name, start_time, end_time, coefficient) VALUES
 (1, 'Ca sáng',    '06:00:00', '14:00:00', 1.00),
