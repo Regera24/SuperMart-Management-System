@@ -1,4 +1,4 @@
-import api, { unwrap } from "./client"
+import api, { unwrap, unwrapPage } from "./client"
 
 // GET /inventory?warehouseId → List<StockResponse>
 export async function getStock(warehouseId = 1) {
@@ -38,4 +38,59 @@ export async function restoreStock(warehouseId, sku, quantity, referenceId) {
 export async function getLowStock(threshold = 10) {
   const resp = await api.get("/inventory/low-stock", { params: { threshold } })
   return unwrap(resp) || []
+}
+
+// ── Suppliers ──
+
+export async function getSuppliers() {
+  const resp = await api.get("/suppliers")
+  return unwrap(resp) || []
+}
+
+export async function createSupplier(data) {
+  const resp = await api.post("/suppliers", data)
+  return unwrap(resp)
+}
+
+export async function updateSupplier(id, data) {
+  const resp = await api.put(`/suppliers/${id}`, data)
+  return unwrap(resp)
+}
+
+export async function deleteSupplier(id) {
+  await api.delete(`/suppliers/${id}`)
+}
+
+// ── Warehouses ──
+
+export async function getWarehouses() {
+  const resp = await api.get("/warehouses")
+  return unwrap(resp) || []
+}
+
+export async function createWarehouse(data) {
+  const resp = await api.post("/warehouses", data)
+  return unwrap(resp)
+}
+
+export async function updateWarehouse(id, data) {
+  const resp = await api.put(`/warehouses/${id}`, data)
+  return unwrap(resp)
+}
+
+// ── Import Receipts ──
+
+export async function getImportReceipts(params = {}) {
+  const resp = await api.get("/import-receipts", { params })
+  return unwrapPage(resp)
+}
+
+export async function createImportReceipt(data) {
+  const resp = await api.post("/import-receipts", data)
+  return unwrap(resp)
+}
+
+export async function approveImportReceipt(id) {
+  const resp = await api.post(`/import-receipts/${id}/approve`)
+  return unwrap(resp)
 }

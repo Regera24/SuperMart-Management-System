@@ -6,6 +6,7 @@ import mss.smms.customer.dto.request.CustomerCreateRequest;
 import mss.smms.customer.dto.request.CustomerUpdateRequest;
 import mss.smms.customer.dto.response.ApiResponse;
 import mss.smms.customer.dto.response.CustomerResponse;
+import mss.smms.customer.dto.response.PointTransactionResponse;
 import mss.smms.customer.service.CustomerService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -78,5 +79,25 @@ public class CustomerController {
         customerService.deductPoints(id, points, referenceId);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .code(200).message("Points deducted").build());
+    }
+
+    @GetMapping("/{id}/points/history")
+    public ResponseEntity<ApiResponse<Page<PointTransactionResponse>>> getPointHistory(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.<Page<PointTransactionResponse>>builder()
+                .code(200).message("OK")
+                .data(customerService.getPointHistory(id, PageRequest.of(page, size))).build());
+    }
+
+    @PostMapping("/{id}/earn-from-order")
+    public ResponseEntity<ApiResponse<Integer>> earnFromOrder(
+            @PathVariable Long id,
+            @RequestParam java.math.BigDecimal orderAmount,
+            @RequestParam(required = false) String orderCode) {
+        int points = customerService.earnFromOrder(id, orderAmount, orderCode);
+        return ResponseEntity.ok(ApiResponse.<Integer>builder()
+                .code(200).message("Points earned: " + points).data(points).build());
     }
 }
