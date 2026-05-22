@@ -52,11 +52,51 @@ spring:
                     name: productServiceCB
                     fallbackUri: forward:/fallback/product
 
+            - id: product-files
+              uri: lb://product-service
+              predicates:
+                - Path=/files/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: productServiceCB
+                    fallbackUri: forward:/fallback/product
+
             # Inventory Service
             - id: inventory
               uri: lb://inventory-service
               predicates:
                 - Path=/inventory/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: inventoryServiceCB
+                    fallbackUri: forward:/fallback/inventory
+
+            - id: inventory-suppliers
+              uri: lb://inventory-service
+              predicates:
+                - Path=/suppliers/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: inventoryServiceCB
+                    fallbackUri: forward:/fallback/inventory
+
+            - id: inventory-warehouses
+              uri: lb://inventory-service
+              predicates:
+                - Path=/warehouses/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: inventoryServiceCB
+                    fallbackUri: forward:/fallback/inventory
+
+            - id: inventory-import-receipts
+              uri: lb://inventory-service
+              predicates:
+                - Path=/import-receipts/**
               filters:
                 - name: CircuitBreaker
                   args:
@@ -79,6 +119,26 @@ spring:
               uri: lb://customer-service
               predicates:
                 - Path=/customers/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: customerServiceCB
+                    fallbackUri: forward:/fallback/customer
+
+            - id: customer-loyalty-rules
+              uri: lb://customer-service
+              predicates:
+                - Path=/loyalty-rules/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: customerServiceCB
+                    fallbackUri: forward:/fallback/customer
+
+            - id: customer-tier-configs
+              uri: lb://customer-service
+              predicates:
+                - Path=/tier-configs/**
               filters:
                 - name: CircuitBreaker
                   args:

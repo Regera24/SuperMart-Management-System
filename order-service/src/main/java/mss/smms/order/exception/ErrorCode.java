@@ -9,7 +9,7 @@ public enum ErrorCode {
     UNCATEGORIZED(500, "Internal server error", HttpStatus.INTERNAL_SERVER_ERROR),
     ORDER_NOT_FOUND(404, "Order not found", HttpStatus.NOT_FOUND),
     ORDER_ALREADY_CANCELLED(400, "Order is already cancelled", HttpStatus.BAD_REQUEST),
-    STOCK_INSUFFICIENT(400, "Insufficient stock for one or more items", HttpStatus.BAD_REQUEST),
+    STOCK_INSUFFICIENT(400, "Không đủ hàng tồn kho", HttpStatus.BAD_REQUEST),
     PAYMENT_FAILED(402, "Payment processing failed", HttpStatus.PAYMENT_REQUIRED),
     INVENTORY_SERVICE_UNAVAILABLE(503, "Inventory service is temporarily unavailable. Please try again later.", HttpStatus.SERVICE_UNAVAILABLE),
     ORDER_SAGA_IN_PROGRESS(409, "Order saga is already in progress", HttpStatus.CONFLICT),

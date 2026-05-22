@@ -13,6 +13,10 @@ public enum ErrorCode {
     NEGATIVE_STOCK_NOT_ALLOWED(400, "Stock quantity cannot go below zero", HttpStatus.BAD_REQUEST),
     UNAUTHORIZED(401, "Unauthorized", HttpStatus.UNAUTHORIZED),
     FORBIDDEN(403, "Forbidden", HttpStatus.FORBIDDEN),
+    SUPPLIER_NOT_FOUND(404, "Supplier not found", HttpStatus.NOT_FOUND),
+    SUPPLIER_ALREADY_EXISTS(409, "Supplier with this name already exists", HttpStatus.CONFLICT),
+    IMPORT_RECEIPT_NOT_FOUND(404, "Import receipt not found", HttpStatus.NOT_FOUND),
+    IMPORT_RECEIPT_ALREADY_APPROVED(400, "Import receipt already approved", HttpStatus.BAD_REQUEST),
     ;
 
     private final int code;

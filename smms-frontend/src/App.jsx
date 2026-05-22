@@ -18,6 +18,9 @@ import UsersPage from "@/pages/users/UsersPage"
 import ReportsPage from "@/pages/reports/ReportsPage"
 import NotificationsPage from "@/pages/notifications/NotificationsPage"
 import SettingsPage from "@/pages/settings/SettingsPage"
+import MyAttendancePage from "@/pages/my-attendance/MyAttendancePage"
+import LandingPage from "@/pages/landing/LandingPage"
+import StoreSettingsPage from "@/pages/store-settings/StoreSettingsPage"
 
 function ProtectedRoute({ children, roles }) {
   const { isAuthenticated, hasAnyRole } = useAuth()
@@ -31,6 +34,7 @@ function AppRoutes() {
 
   return (
     <Routes>
+      <Route path="/landing" element={<LandingPage />} />
       <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
       
       {/* POS - full screen, no admin layout */}
@@ -45,14 +49,16 @@ function AppRoutes() {
         <Route path="/inventory" element={<ProtectedRoute roles={["ADMIN","MANAGER"]}><InventoryPage /></ProtectedRoute>} />
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/staff" element={<ProtectedRoute roles={["ADMIN"]}><StaffPage /></ProtectedRoute>} />
+        <Route path="/my-attendance" element={<MyAttendancePage />} />
         <Route path="/users" element={<ProtectedRoute roles={["ADMIN"]}><UsersPage /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute roles={["ADMIN","MANAGER"]}><ReportsPage /></ProtectedRoute>} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/store-settings" element={<ProtectedRoute roles={["ADMIN"]}><StoreSettingsPage /></ProtectedRoute>} />
       </Route>
 
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<Navigate to="/landing" replace />} />
+      <Route path="*" element={<Navigate to="/landing" replace />} />
     </Routes>
   )
 }
