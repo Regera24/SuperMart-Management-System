@@ -8,10 +8,13 @@ import java.util.Set;
 
 @Entity
 @Table(name = "suppliers")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@EqualsAndHashCode(of = "id")
+@ToString(exclude = "importReceipts")
 public class Supplier {
 
     @Id

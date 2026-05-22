@@ -45,8 +45,8 @@ public class SecurityConfig {
                 .pathMatchers("/actuator/**").permitAll()
                 .pathMatchers("/fallback/**").permitAll()
 
-                // ── Public read-only catalog ──
-                .pathMatchers(HttpMethod.GET, "/products/**", "/categories/**").permitAll()
+                // ── Public read-only catalog + file serving ──
+                .pathMatchers(HttpMethod.GET, "/products/**", "/categories/**", "/files/**").permitAll()
 
                 // ── ADMIN only: user management ──
                 .pathMatchers(HttpMethod.GET, "/users/**").hasRole("ADMIN")
@@ -54,7 +54,19 @@ public class SecurityConfig {
                 .pathMatchers(HttpMethod.PUT, "/users/**").hasRole("ADMIN")
                 .pathMatchers(HttpMethod.PATCH, "/users/**").hasRole("ADMIN")
 
-                // ── ADMIN / MANAGER: staff management ──
+                // ── Staff self-service: any authenticated user ──
+                .pathMatchers("/api/v1/staff/by-account/**").authenticated()
+                .pathMatchers("/api/v1/staff/attendance/check-in").authenticated()
+                .pathMatchers("/api/v1/staff/attendance/check-out/**").authenticated()
+                .pathMatchers(HttpMethod.GET, "/api/v1/staff/attendance").authenticated()
+                .pathMatchers(HttpMethod.GET, "/api/v1/staff/shifts/schedules").authenticated()
+                .pathMatchers(HttpMethod.GET, "/api/v1/staff/shifts").authenticated()
+                .pathMatchers(HttpMethod.POST, "/api/v1/staff/leave").authenticated()
+                .pathMatchers(HttpMethod.GET, "/api/v1/staff/leave/my").authenticated()
+                .pathMatchers(HttpMethod.GET, "/api/v1/staff/leave").authenticated()
+                .pathMatchers(HttpMethod.GET, "/api/v1/staff/payroll/my").authenticated()
+
+                // ── ADMIN / MANAGER: staff management (everything else) ──
                 .pathMatchers("/api/v1/staff/**").hasAnyRole("ADMIN", "MANAGER")
 
                 // ── ADMIN / MANAGER: reports ──

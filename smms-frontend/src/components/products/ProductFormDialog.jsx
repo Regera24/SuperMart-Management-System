@@ -42,7 +42,19 @@ export default function ProductFormDialog({ open, onOpenChange, product = null, 
     if (!form.name || !form.sku || !form.price) { toast.error("Vui lòng điền đầy đủ thông tin bắt buộc"); return }
     setLoading(true)
     try {
-      const data = { ...form, price: Number(form.price) }
+      // Separate new files (need upload) from existing URLs (already uploaded)
+      const newFiles = images.filter((img) => img.file).map((img) => img.file)
+      const existingUrls = images.filter((img) => img.url && !img.file).map((img) => img.url)
+
+      // Upload new files if any
+      let uploadedUrls = []
+      if (newFiles.length > 0) {
+        uploadedUrls = await productApi.uploadImages(newFiles)
+      }
+
+      const allImageUrls = [...existingUrls, ...uploadedUrls]
+      const data = { ...form, price: Number(form.price), imageUrls: allImageUrls }
+
       if (isEdit) {
         await productApi.updateProduct(product.id, data)
         toast.success("Cập nhật sản phẩm thành công!")

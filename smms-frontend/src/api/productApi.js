@@ -24,6 +24,17 @@ export async function createProduct(data) {
   return unwrap(resp)
 }
 
+// POST /files/upload → List<String> (uploaded file URLs)
+export async function uploadImages(files) {
+  const formData = new FormData()
+  files.forEach((file) => formData.append("files", file))
+  const resp = await api.post("/files/upload", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: 60000,
+  })
+  return unwrap(resp)
+}
+
 // PUT /products/:id → ProductResponse
 export async function updateProduct(id, data) {
   const resp = await api.put(`/products/${id}`, data)

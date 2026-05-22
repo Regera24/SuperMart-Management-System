@@ -30,8 +30,8 @@ public class Order {
     @Column(name = "order_code", length = 50, nullable = false, unique = true)
     private String orderCode;
 
-    @Column(name = "customer_id", columnDefinition = "uuid")
-    private UUID customerId;
+    @Column(name = "customer_id")
+    private Long customerId;
 
     @Column(name = "cashier_id", columnDefinition = "uuid")
     private UUID cashierId;
@@ -49,7 +49,7 @@ public class Order {
     private BigDecimal finalAmount;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", length = 20, nullable = false)
+    @Column(name = "status", length = 30, nullable = false)
     private OrderStatus status;
 
     @Column(name = "created_at", nullable = false)

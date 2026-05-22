@@ -15,10 +15,13 @@ import java.time.LocalDateTime;
                 @Index(name = "idx_invtrans_created_at", columnList = "created_at")
         }
 )
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@EqualsAndHashCode(of = "id")
+@ToString(exclude = "warehouse")
 public class InventoryTransaction {
 
     @Id

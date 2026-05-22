@@ -12,10 +12,13 @@ import java.math.BigDecimal;
                 @Index(name = "idx_import_detail_product_sku", columnList = "product_sku")
         }
 )
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@EqualsAndHashCode(of = "id")
+@ToString(exclude = "importReceipt")
 public class ImportDetail {
 
     @Id

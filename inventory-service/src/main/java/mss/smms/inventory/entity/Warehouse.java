@@ -8,10 +8,13 @@ import java.util.Set;
 
 @Entity
 @Table(name = "warehouses")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@EqualsAndHashCode(of = "id")
+@ToString(exclude = {"productStocks", "inventoryTransactions", "importReceipts"})
 public class Warehouse {
 
     @Id

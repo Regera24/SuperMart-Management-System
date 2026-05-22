@@ -8,6 +8,7 @@ import mss.smms.order.dto.request.CheckoutItemRequest;
 import mss.smms.order.dto.request.CheckoutRequest;
 import mss.smms.order.dto.response.OrderItemResponse;
 import mss.smms.order.dto.response.OrderResponse;
+import mss.smms.order.dto.response.OrderStatisticsResponse;
 import mss.smms.order.entity.Order;
 import mss.smms.order.entity.OrderItem;
 import mss.smms.order.entity.OutboxEvent;
@@ -43,20 +44,22 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
+    private final InventoryClientWrapper inventoryClient;
 
     /**
      * Creates an order with status PENDING and writes a ReserveStockCommand to the outbox table
      * in the SAME transaction. The outbox poller will publish the command to Kafka.
      *
-     * <p>This replaces the old synchronous Feign call to inventory-service, solving:
-     * <ul>
-     *   <li>Dual-write problem (order + stock in separate DBs)</li>
-     *   <li>Partial failure (some items deducted, others not)</li>
-     * </ul>
+     * <p>Pre-validates stock availability via synchronous Feign call before creating the order.
+     * This provides fast feedback for out-of-stock scenarios while still using the saga
+     * for the actual stock deduction (which remains the source of truth).</p>
      */
     @Override
     @Transactional
     public OrderResponse checkout(CheckoutRequest request, UUID cashierId) {
+        // 0. Pre-validate stock availability (fast-fail before creating order)
+        validateStockAvailability(request);
+
         List<OrderItem> orderItems = new ArrayList<>();
         BigDecimal subTotal = BigDecimal.ZERO;
 
@@ -275,5 +278,137 @@ public class OrderServiceImpl implements OrderService {
                 .items(itemResponses)
                 .paymentMethod(pm)
                 .build();
+    }
+
+    @Override
+    public Page<OrderResponse> getOrdersByCustomer(Long customerId, Pageable pageable) {
+        return orderRepository.findByCustomerId(customerId, pageable)
+                .map(order -> toResponse(order, BigDecimal.ZERO, null));
+    }
+
+    // ───────────────────────── STATISTICS ───────────────────────────────────
+
+    @Override
+    public OrderStatisticsResponse getStatistics() {
+        LocalDateTime now = LocalDateTime.now();
+
+        // Today: 00:00 → 23:59:59
+        LocalDateTime todayStart = now.toLocalDate().atStartOfDay();
+        LocalDateTime todayEnd = todayStart.plusDays(1).minusSeconds(1);
+
+        // Yesterday
+        LocalDateTime yesterdayStart = todayStart.minusDays(1);
+        LocalDateTime yesterdayEnd = todayStart.minusSeconds(1);
+
+        // Today stats
+        BigDecimal todayRevenue = orderRepository.sumFinalAmountByStatusAndCreatedAtBetween(
+                OrderStatus.COMPLETED, todayStart, todayEnd);
+        long todayOrders = orderRepository.countByStatusAndCreatedAtBetween(
+                OrderStatus.COMPLETED, todayStart, todayEnd);
+
+        // Yesterday stats
+        BigDecimal yesterdayRevenue = orderRepository.sumFinalAmountByStatusAndCreatedAtBetween(
+                OrderStatus.COMPLETED, yesterdayStart, yesterdayEnd);
+        long yesterdayOrders = orderRepository.countByStatusAndCreatedAtBetween(
+                OrderStatus.COMPLETED, yesterdayStart, yesterdayEnd);
+
+        // Total stats (all time)
+        BigDecimal totalRevenue = orderRepository.sumFinalAmountByStatus(OrderStatus.COMPLETED);
+        long totalOrders = orderRepository.countByStatus(OrderStatus.COMPLETED);
+
+        // Daily revenue for last 7 days
+        String[] dayNames = {"CN", "T2", "T3", "T4", "T5", "T6", "T7"};
+        List<OrderStatisticsResponse.DailyRevenue> dailyList = new ArrayList<>();
+        for (int i = 6; i >= 0; i--) {
+            LocalDateTime dayStart = todayStart.minusDays(i);
+            LocalDateTime dayEnd = dayStart.plusDays(1).minusSeconds(1);
+            BigDecimal rev = orderRepository.sumFinalAmountByStatusAndCreatedAtBetween(
+                    OrderStatus.COMPLETED, dayStart, dayEnd);
+            long cnt = orderRepository.countByStatusAndCreatedAtBetween(
+                    OrderStatus.COMPLETED, dayStart, dayEnd);
+            int dow = dayStart.getDayOfWeek().getValue(); // 1=Mon..7=Sun
+            String label = dayNames[dow % 7]; // Sun=0 in array, Mon=1, etc.
+            dailyList.add(OrderStatisticsResponse.DailyRevenue.builder()
+                    .name(label + " " + dayStart.getDayOfMonth() + "/" + dayStart.getMonthValue())
+                    .revenue(rev)
+                    .orders(cnt)
+                    .build());
+        }
+
+        // Monthly summary for current year
+        int currentYear = now.getYear();
+        List<OrderStatisticsResponse.MonthlySummary> monthlyList = new ArrayList<>();
+        for (int m = 1; m <= now.getMonthValue(); m++) {
+            LocalDateTime monthStart = LocalDateTime.of(currentYear, m, 1, 0, 0);
+            LocalDateTime monthEnd = monthStart.plusMonths(1).minusSeconds(1);
+            BigDecimal rev = orderRepository.sumFinalAmountByStatusAndCreatedAtBetween(
+                    OrderStatus.COMPLETED, monthStart, monthEnd);
+            long cnt = orderRepository.countByStatusAndCreatedAtBetween(
+                    OrderStatus.COMPLETED, monthStart, monthEnd);
+            monthlyList.add(OrderStatisticsResponse.MonthlySummary.builder()
+                    .month("T" + m)
+                    .revenue(rev)
+                    .orders(cnt)
+                    .build());
+        }
+
+        return OrderStatisticsResponse.builder()
+                .todayRevenue(todayRevenue)
+                .todayOrders(todayOrders)
+                .yesterdayRevenue(yesterdayRevenue)
+                .yesterdayOrders(yesterdayOrders)
+                .totalRevenue(totalRevenue)
+                .totalOrders(totalOrders)
+                .dailyRevenue(dailyList)
+                .monthlySummary(monthlyList)
+                .build();
+    }
+
+    // ───────────────────────── STOCK PRE-VALIDATION ─────────────────────────
+
+    /**
+     * Pre-validates stock availability for all items in the checkout request.
+     * Uses synchronous Feign call to inventory-service for fast feedback.
+     * If inventory-service is unavailable, the validation is skipped (saga will catch it).
+     */
+    @SuppressWarnings("unchecked")
+    private void validateStockAvailability(CheckoutRequest request) {
+        List<String> errors = new ArrayList<>();
+
+        for (CheckoutItemRequest item : request.getItems()) {
+            try {
+                var stockResp = inventoryClient.getStock(request.getWarehouseId(), item.getProductSku());
+                if (stockResp != null && stockResp.getData() != null) {
+                    // Response data is a StockResponse mapped as LinkedHashMap
+                    Object data = stockResp.getData();
+                    int available = 0;
+                    if (data instanceof Map) {
+                        Object qoh = ((Map<String, Object>) data).get("quantityOnHand");
+                        if (qoh instanceof Number) {
+                            available = ((Number) qoh).intValue();
+                        }
+                    }
+                    if (item.getQuantity() > available) {
+                        errors.add(String.format("SKU %s: cần %d, chỉ còn %d",
+                                item.getProductSku(), item.getQuantity(), available));
+                    }
+                }
+            } catch (AppException e) {
+                if (e.getErrorCode() == ErrorCode.INVENTORY_SERVICE_UNAVAILABLE) {
+                    log.warn("Inventory service unavailable for pre-validation, skipping check for SKU {}",
+                            item.getProductSku());
+                    return; // Skip all validation — saga will handle it
+                }
+                throw e;
+            } catch (Exception e) {
+                log.warn("Failed to pre-validate stock for SKU {}: {}", item.getProductSku(), e.getMessage());
+                return; // Graceful degradation — let saga handle it
+            }
+        }
+
+        if (!errors.isEmpty()) {
+            String message = "Không đủ hàng tồn kho: " + String.join("; ", errors);
+            throw new AppException(ErrorCode.STOCK_INSUFFICIENT, message);
+        }
     }
 }

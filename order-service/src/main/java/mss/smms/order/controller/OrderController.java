@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import mss.smms.order.dto.request.CheckoutRequest;
 import mss.smms.order.dto.response.ApiResponse;
 import mss.smms.order.dto.response.OrderResponse;
+import mss.smms.order.dto.response.OrderStatisticsResponse;
 import mss.smms.order.service.OrderService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -33,6 +34,12 @@ public class OrderController {
                 .code(202).message("Order created, processing...").data(order).build());
     }
 
+    @GetMapping("/statistics")
+    public ResponseEntity<ApiResponse<OrderStatisticsResponse>> getStatistics() {
+        return ResponseEntity.ok(ApiResponse.<OrderStatisticsResponse>builder()
+                .code(200).message("OK").data(orderService.getStatistics()).build());
+    }
+
     @GetMapping
     public ResponseEntity<ApiResponse<Page<OrderResponse>>> getOrders(
             @RequestParam(defaultValue = "0") int page,
@@ -58,5 +65,15 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.<OrderResponse>builder()
                 .code(200).message("Order cancelled")
                 .data(orderService.cancelOrder(id)).build());
+    }
+
+    @GetMapping("/customer/{customerId}")
+    public ResponseEntity<ApiResponse<Page<OrderResponse>>> getOrdersByCustomer(
+            @PathVariable Long customerId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Page<OrderResponse> data = orderService.getOrdersByCustomer(customerId, PageRequest.of(page, size));
+        return ResponseEntity.ok(ApiResponse.<Page<OrderResponse>>builder()
+                .code(200).message("OK").data(data).build());
     }
 }

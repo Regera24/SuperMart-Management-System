@@ -19,7 +19,7 @@ import java.util.UUID;
 public class OrderResponse {
     UUID id;
     String orderCode;
-    UUID customerId;
+    Long customerId;
     UUID cashierId;
     BigDecimal subTotal;
     BigDecimal taxAmount;

@@ -22,7 +22,7 @@ public class PayrollController {
     HrService hrService;
 
     @PostMapping("/generate")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<PayrollResponse>> generate(
             @RequestBody GeneratePayrollRequest request) {
         return ResponseEntity.ok(ApiResponse.<PayrollResponse>builder()
@@ -30,8 +30,17 @@ public class PayrollController {
                 .data(hrService.generatePayroll(request)).build());
     }
 
+    @GetMapping("/my")
+    public ResponseEntity<ApiResponse<Page<PayrollResponse>>> myPayroll(
+            @RequestParam Long employeeId,
+            Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.<Page<PayrollResponse>>builder()
+                .code(200).message("Success")
+                .data(hrService.getPayrolls(employeeId, null, null, pageable)).build());
+    }
+
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Page<PayrollResponse>>> list(
             @RequestParam(required = false) Long employeeId,
             @RequestParam(required = false) Integer month,
@@ -43,7 +52,7 @@ public class PayrollController {
     }
 
     @PutMapping("/{id}/pay")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<PayrollResponse>> markPaid(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.<PayrollResponse>builder()
                 .code(200).message("Marked as paid")

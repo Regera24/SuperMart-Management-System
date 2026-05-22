@@ -13,10 +13,13 @@ import lombok.*;
                 @Index(name = "idx_products_stock_sku", columnList = "product_sku")
         }
 )
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@EqualsAndHashCode(of = "id")
+@ToString(exclude = "warehouse")
 public class ProductStock {
 
     @Id

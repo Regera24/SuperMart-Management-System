@@ -30,7 +30,7 @@ public class LeaveController {
     }
 
     @PutMapping("/{id}/approve")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> approve(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.<LeaveRequestResponse>builder()
                 .code(200).message("Leave approved")
@@ -38,15 +38,23 @@ public class LeaveController {
     }
 
     @PutMapping("/{id}/reject")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<LeaveRequestResponse>> reject(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.<LeaveRequestResponse>builder()
                 .code(200).message("Leave rejected")
                 .data(hrService.rejectLeave(id)).build());
     }
 
+    @GetMapping("/my")
+    public ResponseEntity<ApiResponse<Page<LeaveRequestResponse>>> myLeaves(
+            @RequestParam Long employeeId, Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.<Page<LeaveRequestResponse>>builder()
+                .code(200).message("Success")
+                .data(hrService.getLeaves(employeeId, null, pageable)).build());
+    }
+
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Page<LeaveRequestResponse>>> list(
             @RequestParam(required = false) Long employeeId,
             @RequestParam(required = false) String status,

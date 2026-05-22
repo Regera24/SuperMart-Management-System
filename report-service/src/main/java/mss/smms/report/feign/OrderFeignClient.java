@@ -20,7 +20,7 @@ import java.util.Map;
         configuration = FeignClientConfig.class)
 public interface OrderFeignClient {
 
-    @GetMapping("/api/v1/orders")
+    @GetMapping("/orders")
     ApiPageResponse<OrderSummary> getOrders(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,

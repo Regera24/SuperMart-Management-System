@@ -17,10 +17,13 @@ import java.util.Set;
                 @Index(name = "idx_import_receipt_warehouse", columnList = "warehouse_id")
         }
 )
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@EqualsAndHashCode(of = "id")
+@ToString(exclude = "importDetails")
 public class ImportReceipt {
 
     @Id
@@ -47,5 +50,6 @@ public class ImportReceipt {
     private LocalDateTime createdAt;
 
     @OneToMany(mappedBy = "importReceipt", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private Set<ImportDetail> importDetails = new HashSet<>();
 }

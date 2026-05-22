@@ -1,16 +1,17 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { formatCurrency } from "@/lib/utils"
+import { buildInvoiceHTML, printInvoiceHTML } from "@/lib/printInvoice"
 import * as productApi from "@/api/productApi"
 import * as orderApi from "@/api/orderApi"
 import * as customerApi from "@/api/customerApi"
 import { useAuth } from "@/contexts/AuthContext"
 import { useNotifications } from "@/contexts/NotificationContext"
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Smartphone, X, ArrowLeft, User, Loader2 } from "lucide-react"
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Smartphone, X, ArrowLeft, User, Loader2, Printer } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -27,9 +28,12 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState("CASH")
   const [customerPhone, setCustomerPhone] = useState("")
   const [customer, setCustomer] = useState(null)
+  const [tierDiscount, setTierDiscount] = useState(null) // { discountPercent, maxDiscountAmount, tierLevel }
   const [processing, setProcessing] = useState(false)
   const [loadingProducts, setLoadingProducts] = useState(true)
+  const [invoiceHTML, setInvoiceHTML] = useState(null)
   const searchRef = useRef(null)
+  const invoiceIframeRef = useRef(null)
 
   useEffect(() => {
     async function fetch() {
@@ -61,7 +65,10 @@ export default function POSPage() {
   const removeItem = (id) => setCart(prev => prev.filter(i => i.id !== id))
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
-  const discount = customer ? Math.floor(subtotal * 0.05) : 0
+  const discountPercent = tierDiscount?.discountPercent ? parseFloat(tierDiscount.discountPercent) : 0
+  const maxDiscountAmt = tierDiscount?.maxDiscountAmount ? parseFloat(tierDiscount.maxDiscountAmount) : 0
+  const rawDiscount = customer && discountPercent > 0 ? Math.floor(subtotal * discountPercent / 100) : 0
+  const discount = maxDiscountAmt > 0 ? Math.min(rawDiscount, maxDiscountAmt) : rawDiscount
   const total = subtotal - discount
 
   const handleLookupCustomer = async () => {
@@ -69,13 +76,21 @@ export default function POSPage() {
     try {
       const c = await customerApi.getCustomerByPhone(customerPhone)
       setCustomer(c)
-      toast.success(`Khách hàng: ${c.fullName || c.phone}`)
-    } catch { setCustomer(null); toast.error("Không tìm thấy KH") }
+      // Fetch tier discount config for this customer's rank
+      try {
+        const td = await customerApi.getTierDiscount(c.tier || "REGULAR")
+        setTierDiscount(td)
+      } catch { setTierDiscount(null) }
+      toast.success(`Khách hàng: ${c.fullName || c.phone} — ${c.tier || "REGULAR"}`)
+    } catch { setCustomer(null); setTierDiscount(null); toast.error("Không tìm thấy KH") }
   }
+
+  const [processingMessage, setProcessingMessage] = useState("")
 
   const handleCheckout = async () => {
     if (cart.length === 0) return
     setProcessing(true)
+    setProcessingMessage("Đang tạo đơn hàng...")
     try {
       const data = {
         warehouseId: 1,
@@ -92,18 +107,62 @@ export default function POSPage() {
         note: null,
       }
       const order = await orderApi.checkout(data)
-      toast.success("Thanh toán thành công!", {
-        description: `Mã đơn: ${order?.orderCode || "—"} • Tổng: ${formatCurrency(order?.finalAmount ?? total)}`,
-      })
-      addNotification({ type: "ORDER", title: "Đơn hàng mới", message: `Tổng: ${formatCurrency(order?.finalAmount ?? total)} — Thu ngân: ${user?.fullName}` })
-      setCart([])
-      setCustomer(null)
-      setCustomerPhone("")
-      setShowPayment(false)
+
+      // Poll for saga completion
+      setProcessingMessage("Đang kiểm tra tồn kho...")
+      const finalOrder = await orderApi.pollOrderStatus(order.id)
+
+      if (finalOrder?.status === "COMPLETED") {
+        // ✅ Success
+        toast.success("Thanh toán thành công!", {
+          description: `Mã đơn: ${finalOrder.orderCode || "—"} • Tổng: ${formatCurrency(finalOrder.finalAmount ?? total)}`,
+        })
+        addNotification({ type: "ORDER", title: "Đơn hàng mới", message: `Tổng: ${formatCurrency(finalOrder.finalAmount ?? total)} — Thu ngân: ${user?.fullName}` })
+        // Award loyalty points
+        if (customer?.id && finalOrder?.finalAmount) {
+          try {
+            const pointsEarned = await customerApi.earnFromOrder(customer.id, finalOrder.finalAmount, finalOrder.orderCode || "")
+            if (pointsEarned > 0) {
+              toast.info(`+${pointsEarned} điểm tích lũy cho ${customer.fullName || "KH"}`)
+            }
+          } catch (e) { console.warn("Earn points failed:", e) }
+        }
+        // Show invoice
+        const html = buildInvoiceHTML(finalOrder, cart, customer, user)
+        setInvoiceHTML(html)
+        setCart([])
+        setCustomer(null)
+        setTierDiscount(null)
+        setCustomerPhone("")
+        setShowPayment(false)
+      } else if (finalOrder?.status === "STOCK_RESERVE_FAILED") {
+        // ❌ Out of stock — keep cart so user can adjust
+        toast.error("Không đủ hàng tồn kho!", {
+          description: "Một số sản phẩm đã hết hàng. Vui lòng giảm số lượng hoặc xóa sản phẩm hết hàng.",
+          duration: 6000,
+        })
+        setShowPayment(false)
+      } else if (finalOrder?.status === "PENDING" || finalOrder?.status === "STOCK_RESERVING") {
+        // ⏳ Timeout — saga still processing
+        toast.warning("Đơn hàng đang được xử lý", {
+          description: `Mã đơn: ${finalOrder?.orderCode || order.orderCode || "—"}. Vui lòng kiểm tra lại trong mục Đơn hàng.`,
+          duration: 8000,
+        })
+        setShowPayment(false)
+      } else {
+        // Unknown / other status
+        toast.warning("Đơn hàng đã tạo", {
+          description: `Trạng thái: ${finalOrder?.status || "Không xác định"}. Kiểm tra trong mục Đơn hàng.`,
+        })
+        setShowPayment(false)
+      }
     } catch (err) {
       const msg = err?.response?.data?.message || "Thanh toán thất bại. Vui lòng thử lại."
-      toast.error(msg)
-    } finally { setProcessing(false) }
+      toast.error(msg, { duration: 6000 })
+    } finally {
+      setProcessing(false)
+      setProcessingMessage("")
+    }
   }
 
   return (
@@ -118,20 +177,24 @@ export default function POSPage() {
         </div>
         <div className="flex-1 overflow-auto p-4">
           {loadingProducts ? <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {filtered.map(p => (
-              <Card key={p.id} className="cursor-pointer hover:shadow-lg hover:border-primary/50 transition-all hover:-translate-y-0.5 active:scale-95" onClick={() => addToCart(p)}>
-                <CardContent className="p-3">
-                  <div className="aspect-square rounded-lg bg-muted flex items-center justify-center text-3xl mb-2">📦</div>
-                  <p className="text-sm font-medium truncate">{p.name}</p>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs text-muted-foreground font-mono">{p.sku}</span>
-                    <span className="text-sm font-bold text-primary">{formatCurrency(p.price)}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {filtered.map(p => (
+                <Card key={p.id} className="cursor-pointer hover:shadow-lg hover:border-primary/50 transition-all hover:-translate-y-0.5 active:scale-95" onClick={() => addToCart(p)}>
+                  <CardContent className="p-3">
+                    <div className="aspect-square rounded-lg bg-muted flex items-center justify-center text-3xl mb-2 overflow-hidden">
+                      {p.imageUrls?.length > 0 ? (
+                        <img src={p.imageUrls[0]} alt={p.name} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '📦' }} />
+                      ) : '📦'}
+                    </div>
+                    <p className="text-sm font-medium truncate">{p.name}</p>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs text-muted-foreground font-mono">{p.sku}</span>
+                      <span className="text-sm font-bold text-primary">{formatCurrency(p.price)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -163,13 +226,18 @@ export default function POSPage() {
         {/* Customer lookup */}
         <div className="p-3 border-t">
           <div className="flex gap-1"><Input placeholder="SĐT khách hàng..." value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleLookupCustomer()} className="text-sm" /><Button variant="outline" size="icon" onClick={handleLookupCustomer}><User className="h-4 w-4" /></Button></div>
-          {customer && <p className="text-xs text-emerald-500 mt-1">✓ {customer.fullName} — {customer.tier || "REGULAR"} ({customer.currentPoints || 0} điểm)</p>}
+          {customer && (
+            <div className="mt-1 space-y-0.5">
+              <p className="text-xs text-emerald-500">✓ {customer.fullName} — {customer.tier || "REGULAR"} ({(customer.currentPoints || 0).toLocaleString()} điểm)</p>
+              {discountPercent > 0 && <p className="text-xs text-amber-500">🎁 Giảm giá hạng {tierDiscount?.tierLevel}: {discountPercent}%{maxDiscountAmt > 0 ? ` (tối đa ${formatCurrency(maxDiscountAmt)})` : ""}</p>}
+            </div>
+          )}
         </div>
 
         {/* Totals + Checkout */}
         <div className="p-4 border-t space-y-2">
           <div className="flex justify-between text-sm"><span className="text-muted-foreground">Tạm tính</span><span>{formatCurrency(subtotal)}</span></div>
-          {discount > 0 && <div className="flex justify-between text-sm"><span className="text-emerald-500">Giảm giá (5%)</span><span className="text-emerald-500">-{formatCurrency(discount)}</span></div>}
+          {discount > 0 && <div className="flex justify-between text-sm"><span className="text-emerald-500">Giảm giá ({discountPercent}% — {tierDiscount?.tierLevel || "KH"})</span><span className="text-emerald-500">-{formatCurrency(discount)}</span></div>}
           <div className="flex justify-between text-lg font-bold border-t pt-2"><span>Tổng cộng</span><span className="text-primary">{formatCurrency(total)}</span></div>
           <Button className="w-full h-12 text-base bg-gradient-to-r from-emerald-600 to-teal-500 text-white" disabled={cart.length === 0} onClick={() => setShowPayment(true)}>Thanh toán</Button>
         </div>
@@ -196,8 +264,37 @@ export default function POSPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPayment(false)}>Hủy</Button>
-            <Button onClick={handleCheckout} disabled={processing} className="bg-gradient-to-r from-emerald-600 to-teal-500 text-white">{processing ? "Đang xử lý..." : "Xác nhận thanh toán"}</Button>
+            <Button variant="outline" onClick={() => setShowPayment(false)} disabled={processing}>Hủy</Button>
+            <Button onClick={handleCheckout} disabled={processing} className="bg-gradient-to-r from-emerald-600 to-teal-500 text-white gap-2">
+              {processing && <Loader2 className="h-4 w-4 animate-spin" />}
+              {processing ? (processingMessage || "Đang xử lý...") : "Xác nhận thanh toán"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invoice Preview Dialog */}
+      <Dialog open={!!invoiceHTML} onOpenChange={(open) => { if (!open) setInvoiceHTML(null) }}>
+        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Printer className="h-5 w-5 text-primary" />Xem trước hóa đơn</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto border rounded-lg bg-white min-h-[400px]">
+            <iframe
+              ref={invoiceIframeRef}
+              srcDoc={invoiceHTML || ""}
+              title="Invoice Preview"
+              className="w-full h-full min-h-[400px] border-0"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setInvoiceHTML(null)}>Đóng</Button>
+            <Button
+              onClick={() => { if (invoiceHTML) printInvoiceHTML(invoiceHTML) }}
+              className="bg-gradient-to-r from-emerald-600 to-teal-500 text-white gap-2"
+            >
+              <Printer className="h-4 w-4" /> In hóa đơn
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

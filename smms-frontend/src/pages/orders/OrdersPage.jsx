@@ -7,7 +7,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatCurrency } from "@/lib/utils"
 import { exportToExcel, exportToPdf } from "@/lib/export"
 import * as orderApi from "@/api/orderApi"
-import { Search, Eye, Download, FileText, Loader2 } from "lucide-react"
+import * as customerApi from "@/api/customerApi"
+import { Search, Eye, Download, FileText, Loader2, User, X } from "lucide-react"
 import { toast } from "sonner"
 import Pagination from "@/components/ui/pagination"
 import OrderDetailDialog from "@/components/orders/OrderDetailDialog"
@@ -17,8 +18,29 @@ const ORDER_COLUMNS = [
   { key: "createdAt", label: "Thời gian", format: (v) => v ? new Date(v).toLocaleString("vi-VN") : "" },
   { key: "paymentMethod", label: "Thanh toán" },
   { key: "_amount", label: "Tổng tiền", format: (v) => new Intl.NumberFormat("vi-VN").format(Number(v) || 0) + " ₫" },
-  { key: "status", label: "Trạng thái", format: (v) => v === "COMPLETED" ? "Hoàn thành" : v === "CANCELLED" ? "Đã hủy" : v },
+  { key: "status", label: "Trạng thái", format: (v) => STATUS_LABELS[v] || v },
 ]
+
+const STATUS_LABELS = {
+  COMPLETED: "Hoàn thành",
+  CANCELLED: "Đã hủy",
+  PENDING: "Đang xử lý",
+  STOCK_RESERVING: "Đang giữ hàng",
+  STOCK_RESERVED: "Đã giữ hàng",
+  STOCK_RESERVE_FAILED: "Hết hàng",
+  CANCELLING: "Đang hủy",
+  RETURNED: "Đã trả hàng",
+}
+const STATUS_VARIANT = {
+  COMPLETED: "success",
+  CANCELLED: "destructive",
+  PENDING: "warning",
+  STOCK_RESERVING: "warning",
+  STOCK_RESERVED: "info",
+  STOCK_RESERVE_FAILED: "destructive",
+  CANCELLING: "warning",
+  RETURNED: "secondary",
+}
 
 
 const METHOD_LABELS = { CASH: "Tiền mặt", CREDIT_CARD: "Thẻ", BANK_TRANSFER: "Chuyển khoản", QR_CODE: "QR Code", WALLET: "Ví điện tử" }
@@ -43,6 +65,11 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState("all")
   const [search, setSearch] = useState("")
+  const [customerIdFilter, setCustomerIdFilter] = useState("")
+  const [customerSearch, setCustomerSearch] = useState("")
+  const [customerResults, setCustomerResults] = useState([])
+  const [selectedCustomer, setSelectedCustomer] = useState(null)
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [page, setPage] = useState(0)
@@ -55,11 +82,16 @@ export default function OrdersPage() {
   const fetchOrders = useCallback(async () => {
     setLoading(true)
     try {
-      const params = { page, size: pageSize }
-      if (tab !== "all") params.status = tab.toUpperCase()
-      if (dateFrom) params.from = new Date(dateFrom).toISOString()
-      if (dateTo) params.to = new Date(dateTo).toISOString()
-      const result = await orderApi.getOrders(params)
+      let result
+      if (customerIdFilter.trim()) {
+        result = await orderApi.getOrdersByCustomer(customerIdFilter.trim(), { page, size: pageSize })
+      } else {
+        const params = { page, size: pageSize }
+        if (tab !== "all") params.status = tab.toUpperCase()
+        if (dateFrom) params.from = new Date(dateFrom).toISOString()
+        if (dateTo) params.to = new Date(dateTo).toISOString()
+        result = await orderApi.getOrders(params)
+      }
       setOrders(result.content)
       setTotalPages(result.totalPages)
       setTotalElements(result.totalElements)
@@ -70,7 +102,7 @@ export default function OrdersPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize, tab, dateFrom, dateTo])
+  }, [page, pageSize, tab, dateFrom, dateTo, customerIdFilter])
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
 
@@ -104,6 +136,31 @@ export default function OrdersPage() {
     } catch { toast.error("Không thể hủy đơn hàng") }
   }
 
+  const clearCustomerFilter = () => { setCustomerIdFilter(""); setSelectedCustomer(null); setCustomerSearch(""); setCustomerResults([]); setPage(0) }
+
+  const handleCustomerSearch = async () => {
+    if (!customerSearch.trim()) return
+    try {
+      // Try phone search first
+      try {
+        const byPhone = await customerApi.getCustomerByPhone(customerSearch.trim())
+        if (byPhone) { setCustomerResults([byPhone]); setShowCustomerDropdown(true); return }
+      } catch { /* not found by phone, try name */ }
+      // Search by name
+      const result = await customerApi.getCustomers({ page: 0, size: 10, search: customerSearch.trim() })
+      setCustomerResults(result.content || [])
+      setShowCustomerDropdown(true)
+    } catch { toast.error("Không tìm thấy khách hàng") }
+  }
+
+  const selectCustomer = (c) => {
+    setSelectedCustomer(c)
+    setCustomerIdFilter(c.id)
+    setShowCustomerDropdown(false)
+    setCustomerSearch("")
+    setPage(0)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -113,18 +170,41 @@ export default function OrdersPage() {
           <Button variant="outline" size="sm" onClick={handleExportPdf}><FileText className="h-4 w-4 mr-1" /> PDF</Button>
         </div>
       </div>
-      <Tabs value={tab} onValueChange={(v) => { setTab(v); setPage(0) }}>
+      <Tabs value={tab} onValueChange={(v) => { setTab(v); setPage(0); setCustomerIdFilter("") }}>
         <TabsList>
           <TabsTrigger value="all">Tất cả</TabsTrigger>
           <TabsTrigger value="completed">Hoàn thành</TabsTrigger>
+          <TabsTrigger value="pending">Đang xử lý</TabsTrigger>
+          <TabsTrigger value="stock_reserve_failed">Hết hàng</TabsTrigger>
           <TabsTrigger value="cancelled">Đã hủy</TabsTrigger>
         </TabsList>
       </Tabs>
       <div className="flex gap-3">
         <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Tìm theo mã đơn hàng..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+        <div className="relative">
+          <div className="flex gap-1 items-center">
+            <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <Input placeholder="Tìm KH theo tên/SĐT..." className="w-56" value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCustomerSearch()} />
+            <Button variant="outline" size="sm" onClick={handleCustomerSearch} disabled={!customerSearch.trim()}>Tìm</Button>
+          </div>
+          {showCustomerDropdown && customerResults.length > 0 && (
+            <div className="absolute top-full mt-1 left-0 right-0 z-50 bg-popover border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              {customerResults.map(c => (
+                <button key={c.id} className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 transition-colors flex items-center justify-between" onClick={() => selectCustomer(c)}>
+                  <span className="font-medium">{c.fullName}</span>
+                  <span className="text-xs text-muted-foreground">{c.phone}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {showCustomerDropdown && customerResults.length === 0 && (
+            <div className="absolute top-full mt-1 left-0 right-0 z-50 bg-popover border rounded-lg shadow-lg p-3 text-sm text-muted-foreground text-center">Không tìm thấy</div>
+          )}
+        </div>
         <Input type="date" className="w-40" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0) }} />
         <Input type="date" className="w-40" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0) }} />
       </div>
+      {selectedCustomer && <Badge variant="secondary" className="text-xs inline-flex items-center gap-1">🔍 KH: {selectedCustomer.fullName} ({selectedCustomer.phone}) <button onClick={clearCustomerFilter}><X className="h-3 w-3" /></button></Badge>}
       <Card><CardContent className="p-0">
         {loading ? (
           <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
@@ -143,7 +223,7 @@ export default function OrdersPage() {
                 <td className="p-3 text-sm text-muted-foreground">{o.createdAt ? new Date(o.createdAt).toLocaleString("vi-VN") : ""}</td>
                 <td className="p-3 text-sm text-right font-bold">{formatCurrency(getAmount(o))}</td>
                 <td className="p-3 text-center"><Badge variant={METHOD_BADGE[o.paymentMethod] || "secondary"}>{METHOD_LABELS[o.paymentMethod] || o.paymentMethod || "—"}</Badge></td>
-                <td className="p-3 text-center"><Badge variant={o.status === "COMPLETED" ? "success" : o.status === "CANCELLED" ? "destructive" : "secondary"}>{o.status === "COMPLETED" ? "Hoàn thành" : o.status === "CANCELLED" ? "Đã hủy" : o.status}</Badge></td>
+                <td className="p-3 text-center"><Badge variant={STATUS_VARIANT[o.status] || "secondary"}>{STATUS_LABELS[o.status] || o.status}</Badge></td>
                 <td className="p-3 text-center"><div className="flex justify-center gap-1">
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setDetailId(o.id); setShowDetail(true) }}><Eye className="h-4 w-4" /></Button>
                   {o.status === "COMPLETED" && <Button variant="ghost" size="sm" className="text-xs text-destructive" onClick={() => handleCancel(o.id)}>Hủy</Button>}
@@ -159,3 +239,4 @@ export default function OrdersPage() {
     </div>
   )
 }
+

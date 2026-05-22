@@ -38,6 +38,10 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/inventory/**").hasAnyRole("ADMIN", "MANAGER", "CASHIER")
                 .requestMatchers(HttpMethod.POST, "/inventory/adjust").hasAnyRole("ADMIN", "MANAGER")
+                .requestMatchers(HttpMethod.GET, "/suppliers/**", "/warehouses/**", "/import-receipts/**").hasAnyRole("ADMIN", "MANAGER", "CASHIER")
+                .requestMatchers(HttpMethod.POST, "/suppliers/**", "/warehouses/**", "/import-receipts/**").hasAnyRole("ADMIN", "MANAGER")
+                .requestMatchers(HttpMethod.PUT, "/suppliers/**", "/warehouses/**").hasAnyRole("ADMIN", "MANAGER")
+                .requestMatchers(HttpMethod.DELETE, "/suppliers/**").hasAnyRole("ADMIN", "MANAGER")
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
