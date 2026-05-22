@@ -8,6 +8,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ReportRepository extends JpaRepository<Report, Long> {
-    Page<Report> findByRequestedBy(Long accountId, Pageable pageable);
+    Page<Report> findByRequestedBy(String accountId, Pageable pageable);
     Page<Report> findByType(String type, Pageable pageable);
 }

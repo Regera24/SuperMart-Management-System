@@ -26,7 +26,7 @@ public class ShiftController {
     HrService hrService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<ShiftResponse>> createShift(
             @RequestBody ShiftCreateRequest request) {
         return ResponseEntity.ok(ApiResponse.<ShiftResponse>builder()
@@ -42,7 +42,7 @@ public class ShiftController {
     }
 
     @PostMapping("/assign")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<ShiftScheduleResponse>> assign(
             @RequestBody AssignShiftRequest request) {
         return ResponseEntity.ok(ApiResponse.<ShiftScheduleResponse>builder()
@@ -51,7 +51,6 @@ public class ShiftController {
     }
 
     @GetMapping("/schedules")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<ApiResponse<Page<ShiftScheduleResponse>>> schedules(
             @RequestParam(required = false) Long employeeId,
             Pageable pageable) {

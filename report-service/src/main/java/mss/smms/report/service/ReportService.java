@@ -9,6 +9,6 @@ public interface ReportService {
     ReportResponse generate(GenerateReportRequest request);
     ReportResponse getById(Long id);
     Page<ReportResponse> getAll(Pageable pageable);
-    Page<ReportResponse> getByRequester(Long accountId, Pageable pageable);
+    Page<ReportResponse> getByRequester(String accountId, Pageable pageable);
     String getReportFilePath(Long id);
 }

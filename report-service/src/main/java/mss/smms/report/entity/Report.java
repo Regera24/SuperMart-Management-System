@@ -42,7 +42,7 @@ public class Report {
     LocalDate periodTo;
 
     @Column(nullable = false)
-    Long requestedBy;  // accountId of requester
+    String requestedBy;  // accountId of requester
 
     @Column
     LocalDateTime requestedAt;

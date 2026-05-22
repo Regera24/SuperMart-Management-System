@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -77,10 +78,12 @@ public class ReportServiceImpl implements ReportService {
     // ───────────────────────── SALES REPORT ────────────────────────────────
 
     private String generateSalesReport(GenerateReportRequest req) throws IOException {
-        log.info("Fetching orders from order-service for period {} – {}", req.getPeriodFrom(), req.getPeriodTo());
+        LocalDate from = req.getPeriodFrom() != null ? req.getPeriodFrom() : LocalDate.now().minusYears(1);
+        LocalDate to = req.getPeriodTo() != null ? req.getPeriodTo() : LocalDate.now();
+        log.info("Fetching orders from order-service for period {} – {}", from, to);
 
         OrderFeignClient.ApiPageResponse<OrderFeignClient.OrderSummary> response =
-                orderFeignClient.getOrders(req.getPeriodFrom().atStartOfDay(), req.getPeriodTo().atStartOfDay(), 0, 1000);
+                orderFeignClient.getOrders(from.atStartOfDay(), to.atStartOfDay(), 0, 1000);
 
         List<OrderFeignClient.OrderSummary> orders = Optional.ofNullable(response)
                 .map(OrderFeignClient.ApiPageResponse::getData)
@@ -175,7 +178,7 @@ public class ReportServiceImpl implements ReportService {
     }
 
     @Override
-    public Page<ReportResponse> getByRequester(Long accountId, Pageable pageable) {
+    public Page<ReportResponse> getByRequester(String accountId, Pageable pageable) {
         return reportRepository.findByRequestedBy(accountId, pageable).map(this::toResponse);
     }
 

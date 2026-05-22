@@ -55,7 +55,7 @@ public class ReportController {
     @GetMapping("/requester/{accountId}")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<ApiResponse<Page<ReportResponse>>> getByRequester(
-            @PathVariable Long accountId,
+            @PathVariable String accountId,
             Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.<Page<ReportResponse>>builder()
                 .code(200).message("Success")

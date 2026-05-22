@@ -3,7 +3,7 @@ import { NavLink, useLocation } from "react-router-dom"
 import {
   LayoutDashboard, ShoppingCart, Package, FolderTree, Users, Warehouse,
   UserCog, FileBarChart, Bell, Settings, ChevronLeft, ChevronRight,
-  ClipboardList, UserCircle, LogOut
+  ClipboardList, UserCircle, LogOut, Clock, Globe
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
@@ -20,9 +20,11 @@ const navItems = [
   { title: "Khách hàng", icon: Users, path: "/customers", roles: ["ADMIN", "MANAGER", "CASHIER"] },
   { title: "Tồn kho", icon: Warehouse, path: "/inventory", roles: ["ADMIN", "MANAGER"] },
   { title: "Nhân viên", icon: UserCircle, path: "/staff", roles: ["ADMIN"] },
+  { title: "Chấm công", icon: Clock, path: "/my-attendance", roles: ["ADMIN", "MANAGER", "CASHIER", "STAFF"] },
   { title: "Quản lý Users", icon: UserCog, path: "/users", roles: ["ADMIN"] },
   { title: "Báo cáo", icon: FileBarChart, path: "/reports", roles: ["ADMIN", "MANAGER"] },
   { title: "Thông báo", icon: Bell, path: "/notifications", roles: ["ADMIN", "MANAGER", "CASHIER"] },
+  { title: "Trang Landing", icon: Globe, path: "/store-settings", roles: ["ADMIN"] },
   { title: "Cài đặt", icon: Settings, path: "/settings", roles: ["ADMIN", "MANAGER", "CASHIER"] },
 ]
 

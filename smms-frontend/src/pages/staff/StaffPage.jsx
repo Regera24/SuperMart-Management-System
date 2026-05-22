@@ -10,11 +10,12 @@ import { exportToExcel, exportToPdf } from "@/lib/export"
 import * as staffApi from "@/api/staffApi"
 import {
   Search, Plus, Pencil, Trash2, Download, FileText, Loader2, Building2,
-  Clock, CalendarOff, DollarSign, CalendarClock, CheckCircle2, XCircle, LogIn, LogOut
+  Clock, CalendarOff, DollarSign, CalendarClock, CheckCircle2, XCircle, LogIn, LogOut, ShieldAlert, Eye
 } from "lucide-react"
 import { toast } from "sonner"
 import Pagination from "@/components/ui/pagination"
 import StaffFormDialog from "@/components/staff/StaffFormDialog"
+import { useAuth } from "@/contexts/AuthContext"
 
 const EMP_COLUMNS = [
   { key: "fullName", label: "Họ tên" },
@@ -32,7 +33,24 @@ const STATUS_COLORS = {
 const fmtDate = (d) => d ? new Date(d).toLocaleString("vi-VN") : "—"
 const fmtDateShort = (d) => d ? new Date(d).toLocaleDateString("vi-VN") : "—"
 
+// ── Admin-only info banner ──
+const AdminOnlyBanner = () => (
+  <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-600">
+    <ShieldAlert className="h-4 w-4 flex-shrink-0" />
+    <span>Bạn đang ở chế độ <strong>chỉ xem</strong>. Chỉ Admin mới có quyền chỉnh sửa dữ liệu.</span>
+  </div>
+)
+
+const SectionHeader = ({ icon: Icon, title, iconColor = "text-primary" }) => (
+  <div className="flex items-center gap-2 mb-3">
+    <Icon className={`h-4 w-4 ${iconColor}`} />
+    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
+  </div>
+)
+
 export default function StaffPage() {
+  const { hasRole } = useAuth()
+  const isAdmin = hasRole("ADMIN")
   const [tab, setTab] = useState("employees")
 
   // ── Employees ──
@@ -51,6 +69,8 @@ export default function StaffPage() {
   const [attEmpId, setAttEmpId] = useState("")
   const [attLogs, setAttLogs] = useState([])
   const [attLoading, setAttLoading] = useState(false)
+  const [checkEmpId, setCheckEmpId] = useState("")
+  const [checkStatus, setCheckStatus] = useState(null) // 'checked-in' | null
 
   // ── Leave ──
   const [leaveList, setLeaveList] = useState([])
@@ -60,12 +80,12 @@ export default function StaffPage() {
   // ── Payroll ──
   const [payrollList, setPayrollList] = useState([])
   const [payrollLoading, setPayrollLoading] = useState(false)
-  const [payrollForm, setPayrollForm] = useState({ employeeId: "", month: new Date().getMonth() + 1, year: new Date().getFullYear(), hourlyRate: 50000, bonusAmount: 0 })
+  const [payrollForm, setPayrollForm] = useState({ employeeId: "", month: new Date().getMonth() + 1, year: new Date().getFullYear(), bonus: 0, deduction: 0 })
 
   // ── Shifts ──
   const [shifts, setShifts] = useState([])
   const [shiftsLoading, setShiftsLoading] = useState(false)
-  const [shiftForm, setShiftForm] = useState({ name: "", startTime: "08:00", endTime: "17:00", description: "" })
+  const [shiftForm, setShiftForm] = useState({ shiftName: "", startTime: "08:00", endTime: "17:00", coefficient: 1.0 })
   const [assignForm, setAssignForm] = useState({ employeeId: "", shiftId: "", date: "" })
 
   // ─── Load employees ────────────────────────────────────────────
@@ -94,27 +114,33 @@ export default function StaffPage() {
   const fetchAttendance = async () => {
     if (!attEmpId) return
     setAttLoading(true)
-    try { setAttLogs(await staffApi.getAttendanceLogs(attEmpId)) }
+    try {
+      const res = await staffApi.getAttendanceLogs(attEmpId)
+      setAttLogs(res.content || [])
+    }
     catch { toast.error("Không tải được chấm công") }
     finally { setAttLoading(false) }
   }
 
   const handleCheckIn = async () => {
-    const eid = prompt("Mã nhân viên (ID):"); if (!eid) return
-    try { await staffApi.checkIn({ employeeId: Number(eid) }); toast.success("Check-in thành công!") }
+    if (!checkEmpId) { toast.error("Vui lòng chọn nhân viên"); return }
+    try { await staffApi.checkIn({ employeeId: Number(checkEmpId) }); toast.success("Check-in thành công!") }
     catch (e) { toast.error(e?.response?.data?.message || "Lỗi check-in") }
   }
 
   const handleCheckOut = async () => {
-    const eid = prompt("Mã nhân viên (ID):"); if (!eid) return
-    try { await staffApi.checkOut({ employeeId: Number(eid) }); toast.success("Check-out thành công!") }
+    if (!checkEmpId) { toast.error("Vui lòng chọn nhân viên"); return }
+    try { await staffApi.checkOut(Number(checkEmpId)); toast.success("Check-out thành công!") }
     catch (e) { toast.error(e?.response?.data?.message || "Lỗi check-out") }
   }
 
   // ─── Leave ────────────────────────────────────────────────────
   const fetchLeave = useCallback(async () => {
     setLeaveLoading(true)
-    try { setLeaveList(await staffApi.getAllLeaveRequests()) }
+    try {
+      const res = await staffApi.getAllLeaveRequests()
+      setLeaveList(res.content || [])
+    }
     catch { toast.error("Không tải được danh sách nghỉ phép") }
     finally { setLeaveLoading(false) }
   }, [])
@@ -123,7 +149,10 @@ export default function StaffPage() {
 
   const handleSubmitLeave = async () => {
     try {
-      await staffApi.submitLeaveRequest({ ...leaveForm, employeeId: Number(leaveForm.employeeId) })
+      await staffApi.submitLeaveRequest({
+        ...leaveForm,
+        employeeId: Number(leaveForm.employeeId),
+      })
       toast.success("Đã gửi yêu cầu nghỉ phép")
       setLeaveForm({ employeeId: "", startDate: "", endDate: "", reason: "" })
       fetchLeave()
@@ -133,7 +162,10 @@ export default function StaffPage() {
   // ─── Payroll ─────────────────────────────────────────────────
   const fetchPayroll = useCallback(async () => {
     setPayrollLoading(true)
-    try { setPayrollList(await staffApi.getAllPayroll()) }
+    try {
+      const res = await staffApi.getAllPayroll()
+      setPayrollList(res.content || [])
+    }
     catch { toast.error("Không tải được bảng lương") }
     finally { setPayrollLoading(false) }
   }, [])
@@ -142,7 +174,13 @@ export default function StaffPage() {
 
   const handleGeneratePayroll = async () => {
     try {
-      await staffApi.generatePayroll({ ...payrollForm, employeeId: Number(payrollForm.employeeId), hourlyRate: Number(payrollForm.hourlyRate), bonusAmount: Number(payrollForm.bonusAmount) })
+      await staffApi.generatePayroll({
+        employeeId: Number(payrollForm.employeeId),
+        month: Number(payrollForm.month),
+        year: Number(payrollForm.year),
+        bonus: Number(payrollForm.bonus) || 0,
+        deduction: Number(payrollForm.deduction) || 0,
+      })
       toast.success("Tính lương thành công!")
       fetchPayroll()
     } catch (e) { toast.error(e?.response?.data?.message || "Lỗi tính lương") }
@@ -164,7 +202,17 @@ export default function StaffPage() {
   useEffect(() => { if (tab === "shifts") fetchShifts() }, [tab, fetchShifts])
 
   const handleCreateShift = async () => {
-    try { await staffApi.createShift(shiftForm); toast.success("Đã tạo ca"); fetchShifts(); setShiftForm({ name: "", startTime: "08:00", endTime: "17:00", description: "" }) }
+    try {
+      await staffApi.createShift({
+        shiftName: shiftForm.shiftName,
+        startTime: shiftForm.startTime,
+        endTime: shiftForm.endTime,
+        coefficient: Number(shiftForm.coefficient) || 1.0,
+      })
+      toast.success("Đã tạo ca")
+      fetchShifts()
+      setShiftForm({ shiftName: "", startTime: "08:00", endTime: "17:00", coefficient: 1.0 })
+    }
     catch (e) { toast.error(e?.response?.data?.message || "Lỗi") }
   }
 
@@ -190,6 +238,14 @@ export default function StaffPage() {
   const enriched = employees.map(e => ({ ...e, _salaryFmt: formatCurrency(e.baseSalary) }))
   const getInitials = (n) => n ? n.split(" ").map(x => x[0]).join("").slice(-2).toUpperCase() : "NV"
 
+  // Reusable employee select component
+  const EmployeeSelect = ({ value, onChange, placeholder = "Chọn nhân viên" }) => (
+    <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm" value={value} onChange={e => onChange(e.target.value)}>
+      <option value="">{placeholder}</option>
+      {employees.map(e => <option key={e.id} value={e.id}>{e.fullName} (ID: {e.id})</option>)}
+    </select>
+  )
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -197,9 +253,10 @@ export default function StaffPage() {
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => { exportToExcel(enriched, EMP_COLUMNS, "nhan_vien"); toast.success("Xuất Excel!") }}><Download className="h-4 w-4 mr-1" />Excel</Button>
           <Button variant="outline" size="sm" onClick={() => { exportToPdf(enriched, EMP_COLUMNS, "nhan_vien", { title: "Danh sách Nhân viên" }); toast.success("Xuất PDF!") }}><FileText className="h-4 w-4 mr-1" />PDF</Button>
-          <Button className="bg-gradient-to-r from-emerald-600 to-teal-500 text-white" onClick={() => { setEditEmployee(null); setShowForm(true) }}><Plus className="h-4 w-4 mr-2" />Thêm nhân viên</Button>
+          {isAdmin && <Button className="bg-gradient-to-r from-emerald-600 to-teal-500 text-white" onClick={() => { setEditEmployee(null); setShowForm(true) }}><Plus className="h-4 w-4 mr-2" />Thêm nhân viên</Button>}
         </div>
       </div>
+      {!isAdmin && <AdminOnlyBanner />}
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex-wrap h-auto gap-1">
@@ -213,6 +270,7 @@ export default function StaffPage() {
 
         {/* ── EMPLOYEES TAB ─────────────────────────────────── */}
         <TabsContent value="employees" className="mt-4 space-y-4">
+          <SectionHeader icon={Eye} title="Danh sách nhân viên" iconColor="text-blue-500" />
           <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Tìm nhân viên..." className="pl-10" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0) }} /></div>
           <Card><CardContent className="p-0">
             {loading ? <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : (
@@ -222,7 +280,7 @@ export default function StaffPage() {
                 <th className="p-3 text-left text-xs font-medium text-muted-foreground">SĐT</th>
                 <th className="p-3 text-left text-xs font-medium text-muted-foreground">Phòng ban</th>
                 <th className="p-3 text-right text-xs font-medium text-muted-foreground">Lương cơ bản</th>
-                <th className="p-3 text-center text-xs font-medium text-muted-foreground">Thao tác</th>
+                {isAdmin && <th className="p-3 text-center text-xs font-medium text-muted-foreground">Thao tác</th>}
               </tr></thead><tbody>
                 {employees.map((e) => (
                   <tr key={e.id} className="border-b hover:bg-muted/30 transition-colors">
@@ -231,7 +289,7 @@ export default function StaffPage() {
                     <td className="p-3 text-sm font-mono">{e.phone || "—"}</td>
                     <td className="p-3"><Badge variant="secondary">{e.departmentName || "—"}</Badge></td>
                     <td className="p-3 text-sm text-right font-medium">{formatCurrency(e.baseSalary)}</td>
-                    <td className="p-3"><div className="flex justify-center gap-1"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditEmployee(e); setShowForm(true) }}><Pencil className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(e.id)}><Trash2 className="h-3.5 w-3.5" /></Button></div></td>
+                    {isAdmin && <td className="p-3"><div className="flex justify-center gap-1"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditEmployee(e); setShowForm(true) }}><Pencil className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(e.id)}><Trash2 className="h-3.5 w-3.5" /></Button></div></td>}
                   </tr>
                 ))}
                 {employees.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-muted-foreground">Không tìm thấy nhân viên</td></tr>}
@@ -243,7 +301,7 @@ export default function StaffPage() {
 
         {/* ── DEPARTMENTS TAB ───────────────────────────────── */}
         <TabsContent value="departments" className="mt-4 space-y-4">
-          <div className="flex justify-end"><Button variant="outline" onClick={handleAddDept}><Plus className="h-4 w-4 mr-1" />Thêm phòng ban</Button></div>
+          {isAdmin && <div className="flex justify-end"><Button variant="outline" onClick={handleAddDept}><Plus className="h-4 w-4 mr-1" />Thêm phòng ban</Button></div>}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {departments.map((d) => (
               <Card key={d.id} className="hover:shadow-lg transition-shadow">
@@ -256,18 +314,28 @@ export default function StaffPage() {
 
         {/* ── ATTENDANCE TAB ────────────────────────────────── */}
         <TabsContent value="attendance" className="mt-4 space-y-4">
-          <div className="flex gap-3 flex-wrap">
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleCheckIn}><LogIn className="h-4 w-4 mr-2" />Check-in</Button>
-            <Button variant="outline" onClick={handleCheckOut}><LogOut className="h-4 w-4 mr-2" />Check-out</Button>
-          </div>
+          {isAdmin && (
+            <>
+              <SectionHeader icon={Pencil} title="Chấm công nhân viên (Admin)" iconColor="text-emerald-500" />
+              <div className="flex gap-3 flex-wrap items-end">
+                <div className="w-64">
+                  <p className="text-xs text-muted-foreground mb-1">Nhân viên</p>
+                  <EmployeeSelect value={checkEmpId} onChange={setCheckEmpId} />
+                </div>
+                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleCheckIn} disabled={!checkEmpId}><LogIn className="h-4 w-4 mr-2" />Check-in</Button>
+                <Button variant="outline" onClick={handleCheckOut} disabled={!checkEmpId}><LogOut className="h-4 w-4 mr-2" />Check-out</Button>
+              </div>
+            </>
+          )}
+          <SectionHeader icon={Eye} title="Xem lịch sử chấm công" iconColor="text-blue-500" />
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Xem lịch sử chấm công</CardTitle>
+              <CardTitle className="text-base">Lịch sử chấm công</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex gap-2">
-                <Input placeholder="Mã nhân viên (ID)" value={attEmpId} onChange={e => setAttEmpId(e.target.value)} className="max-w-xs" />
-                <Button onClick={fetchAttendance} disabled={attLoading}>{attLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Tìm kiếm"}</Button>
+                <div className="max-w-xs w-full"><EmployeeSelect value={attEmpId} onChange={setAttEmpId} placeholder="Chọn nhân viên để xem chấm công" /></div>
+                <Button onClick={fetchAttendance} disabled={attLoading || !attEmpId}>{attLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Tìm kiếm"}</Button>
               </div>
               {attLogs.length > 0 && (
                 <table className="w-full mt-2"><thead><tr className="border-b bg-muted/50">
@@ -293,19 +361,25 @@ export default function StaffPage() {
 
         {/* ── LEAVE TAB ────────────────────────────────────── */}
         <TabsContent value="leave" className="mt-4 space-y-4">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Đăng ký nghỉ phép</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                <Input placeholder="Mã NV (ID)" value={leaveForm.employeeId} onChange={e => setLeaveForm(f => ({ ...f, employeeId: e.target.value }))} />
-                <Input type="date" value={leaveForm.startDate} onChange={e => setLeaveForm(f => ({ ...f, startDate: e.target.value }))} />
-                <Input type="date" value={leaveForm.endDate} onChange={e => setLeaveForm(f => ({ ...f, endDate: e.target.value }))} />
-                <Input placeholder="Lý do nghỉ phép" value={leaveForm.reason} onChange={e => setLeaveForm(f => ({ ...f, reason: e.target.value }))} />
-              </div>
-              <Button onClick={handleSubmitLeave} className="bg-gradient-to-r from-blue-600 to-indigo-500 text-white"><Plus className="h-4 w-4 mr-2" />Gửi yêu cầu</Button>
-            </CardContent>
-          </Card>
+          {isAdmin && (
+            <>
+              <SectionHeader icon={Pencil} title="Tạo đơn nghỉ phép (Admin)" iconColor="text-blue-500" />
+              <Card>
+                <CardHeader><CardTitle className="text-base">Đăng ký nghỉ phép</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <EmployeeSelect value={leaveForm.employeeId} onChange={v => setLeaveForm(f => ({ ...f, employeeId: v }))} />
+                    <Input type="date" value={leaveForm.startDate} onChange={e => setLeaveForm(f => ({ ...f, startDate: e.target.value }))} />
+                    <Input type="date" value={leaveForm.endDate} onChange={e => setLeaveForm(f => ({ ...f, endDate: e.target.value }))} />
+                    <Input placeholder="Lý do nghỉ phép" value={leaveForm.reason} onChange={e => setLeaveForm(f => ({ ...f, reason: e.target.value }))} />
+                  </div>
+                  <Button onClick={handleSubmitLeave} className="bg-gradient-to-r from-blue-600 to-indigo-500 text-white"><Plus className="h-4 w-4 mr-2" />Gửi yêu cầu</Button>
+                </CardContent>
+              </Card>
+            </>
+          )}
 
+          <SectionHeader icon={Eye} title="Danh sách yêu cầu nghỉ phép" iconColor="text-blue-500" />
           <Card><CardContent className="p-0">
             {leaveLoading ? <div className="p-10 flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div> : (
               <table className="w-full"><thead><tr className="border-b bg-muted/50">
@@ -314,7 +388,7 @@ export default function StaffPage() {
                 <th className="p-3 text-left text-xs font-medium text-muted-foreground">Đến ngày</th>
                 <th className="p-3 text-left text-xs font-medium text-muted-foreground">Lý do</th>
                 <th className="p-3 text-center text-xs font-medium text-muted-foreground">Trạng thái</th>
-                <th className="p-3 text-center text-xs font-medium text-muted-foreground">Thao tác</th>
+                {isAdmin && <th className="p-3 text-center text-xs font-medium text-muted-foreground">Thao tác</th>}
               </tr></thead><tbody>
                 {leaveList.map((l) => (
                   <tr key={l.id} className="border-b hover:bg-muted/30">
@@ -323,17 +397,19 @@ export default function StaffPage() {
                     <td className="p-3 text-sm">{fmtDateShort(l.endDate)}</td>
                     <td className="p-3 text-sm text-muted-foreground max-w-xs truncate">{l.reason || "—"}</td>
                     <td className="p-3 text-center"><Badge variant={STATUS_COLORS[l.status] || "secondary"}>{l.status}</Badge></td>
-                    <td className="p-3">
-                      {l.status === "PENDING" && (
-                        <div className="flex justify-center gap-1">
-                          <Button size="icon" className="h-7 w-7 bg-emerald-600 hover:bg-emerald-700" onClick={async () => { try { await staffApi.approveLeave(l.id); toast.success("Đã duyệt"); fetchLeave() } catch { toast.error("Lỗi") } }}><CheckCircle2 className="h-3.5 w-3.5" /></Button>
-                          <Button size="icon" variant="destructive" className="h-7 w-7" onClick={async () => { try { await staffApi.rejectLeave(l.id); toast.success("Đã từ chối"); fetchLeave() } catch { toast.error("Lỗi") } }}><XCircle className="h-3.5 w-3.5" /></Button>
-                        </div>
-                      )}
-                    </td>
+                    {isAdmin && (
+                      <td className="p-3">
+                        {l.status === "PENDING" && (
+                          <div className="flex justify-center gap-1">
+                            <Button size="icon" className="h-7 w-7 bg-emerald-600 hover:bg-emerald-700" onClick={async () => { try { await staffApi.approveLeave(l.id); toast.success("Đã duyệt"); fetchLeave() } catch { toast.error("Lỗi") } }}><CheckCircle2 className="h-3.5 w-3.5" /></Button>
+                            <Button size="icon" variant="destructive" className="h-7 w-7" onClick={async () => { try { await staffApi.rejectLeave(l.id); toast.success("Đã từ chối"); fetchLeave() } catch { toast.error("Lỗi") } }}><XCircle className="h-3.5 w-3.5" /></Button>
+                          </div>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
-                {leaveList.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-muted-foreground">Chưa có yêu cầu nghỉ phép</td></tr>}
+                {leaveList.length === 0 && <tr><td colSpan={isAdmin ? 6 : 5} className="p-10 text-center text-muted-foreground">Chưa có yêu cầu nghỉ phép</td></tr>}
               </tbody></table>
             )}
           </CardContent></Card>
@@ -341,20 +417,26 @@ export default function StaffPage() {
 
         {/* ── PAYROLL TAB ──────────────────────────────────── */}
         <TabsContent value="payroll" className="mt-4 space-y-4">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Tính lương nhân viên</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                <Input placeholder="Mã NV (ID)" value={payrollForm.employeeId} onChange={e => setPayrollForm(f => ({ ...f, employeeId: e.target.value }))} />
-                <Input type="number" placeholder="Tháng" min={1} max={12} value={payrollForm.month} onChange={e => setPayrollForm(f => ({ ...f, month: e.target.value }))} />
-                <Input type="number" placeholder="Năm" value={payrollForm.year} onChange={e => setPayrollForm(f => ({ ...f, year: e.target.value }))} />
-                <Input type="number" placeholder="Lương/giờ (VNĐ)" value={payrollForm.hourlyRate} onChange={e => setPayrollForm(f => ({ ...f, hourlyRate: e.target.value }))} />
-                <Input type="number" placeholder="Thưởng (VNĐ)" value={payrollForm.bonusAmount} onChange={e => setPayrollForm(f => ({ ...f, bonusAmount: e.target.value }))} />
-              </div>
-              <Button onClick={handleGeneratePayroll} className="bg-gradient-to-r from-emerald-600 to-teal-500 text-white"><DollarSign className="h-4 w-4 mr-2" />Tính lương</Button>
-            </CardContent>
-          </Card>
+          {isAdmin && (
+            <>
+              <SectionHeader icon={Pencil} title="Tính lương nhân viên (Admin)" iconColor="text-emerald-500" />
+              <Card>
+                <CardHeader><CardTitle className="text-base">Tính lương nhân viên</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                    <EmployeeSelect value={payrollForm.employeeId} onChange={v => setPayrollForm(f => ({ ...f, employeeId: v }))} />
+                    <Input type="number" placeholder="Tháng" min={1} max={12} value={payrollForm.month} onChange={e => setPayrollForm(f => ({ ...f, month: e.target.value }))} />
+                    <Input type="number" placeholder="Năm" value={payrollForm.year} onChange={e => setPayrollForm(f => ({ ...f, year: e.target.value }))} />
+                    <Input type="number" placeholder="Thưởng (VNĐ)" value={payrollForm.bonus} onChange={e => setPayrollForm(f => ({ ...f, bonus: e.target.value }))} />
+                    <Input type="number" placeholder="Khấu trừ (VNĐ)" value={payrollForm.deduction} onChange={e => setPayrollForm(f => ({ ...f, deduction: e.target.value }))} />
+                  </div>
+                  <Button onClick={handleGeneratePayroll} className="bg-gradient-to-r from-emerald-600 to-teal-500 text-white"><DollarSign className="h-4 w-4 mr-2" />Tính lương</Button>
+                </CardContent>
+              </Card>
+            </>
+          )}
 
+          <SectionHeader icon={Eye} title="Bảng lương" iconColor="text-blue-500" />
           <Card><CardContent className="p-0">
             {payrollLoading ? <div className="p-10 flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div> : (
               <table className="w-full"><thead><tr className="border-b bg-muted/50">
@@ -365,25 +447,27 @@ export default function StaffPage() {
                 <th className="p-3 text-right text-xs font-medium text-muted-foreground">Thưởng</th>
                 <th className="p-3 text-right text-xs font-medium text-muted-foreground">Tổng</th>
                 <th className="p-3 text-center text-xs font-medium text-muted-foreground">Trạng thái</th>
-                <th className="p-3 text-center text-xs font-medium text-muted-foreground">Thao tác</th>
+                {isAdmin && <th className="p-3 text-center text-xs font-medium text-muted-foreground">Thao tác</th>}
               </tr></thead><tbody>
                 {payrollList.map((p) => (
                   <tr key={p.id} className="border-b hover:bg-muted/30">
                     <td className="p-3 text-sm font-mono">{p.employeeId}</td>
                     <td className="p-3 text-sm text-center">{p.month}/{p.year}</td>
-                    <td className="p-3 text-sm text-right">{p.totalHoursWorked?.toFixed(1)}h</td>
-                    <td className="p-3 text-sm text-right">{formatCurrency(p.baseSalary)}</td>
-                    <td className="p-3 text-sm text-right">{formatCurrency(p.bonusAmount)}</td>
-                    <td className="p-3 text-sm text-right font-bold text-emerald-600">{formatCurrency(p.totalAmount)}</td>
+                    <td className="p-3 text-sm text-right">{p.totalWorkHours?.toFixed(1)}h</td>
+                    <td className="p-3 text-sm text-right">{formatCurrency(p.standardSalary)}</td>
+                    <td className="p-3 text-sm text-right">{formatCurrency(p.bonus)}</td>
+                    <td className="p-3 text-sm text-right font-bold text-emerald-600">{formatCurrency(p.finalSalary)}</td>
                     <td className="p-3 text-center"><Badge variant={p.status === "PAID" ? "success" : "secondary"}>{p.status === "PAID" ? "Đã trả" : "Chưa trả"}</Badge></td>
-                    <td className="p-3 text-center">
-                      {p.status !== "PAID" && (
-                        <Button size="sm" variant="outline" className="h-7 text-xs text-emerald-600 border-emerald-600" onClick={() => handleMarkPaid(p.id)}>Đã trả</Button>
-                      )}
-                    </td>
+                    {isAdmin && (
+                      <td className="p-3 text-center">
+                        {p.status !== "PAID" && (
+                          <Button size="sm" variant="outline" className="h-7 text-xs text-emerald-600 border-emerald-600" onClick={() => handleMarkPaid(p.id)}>Đã trả</Button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
-                {payrollList.length === 0 && <tr><td colSpan={8} className="p-10 text-center text-muted-foreground">Chưa có dữ liệu lương</td></tr>}
+                {payrollList.length === 0 && <tr><td colSpan={isAdmin ? 8 : 7} className="p-10 text-center text-muted-foreground">Chưa có dữ liệu lương</td></tr>}
               </tbody></table>
             )}
           </CardContent></Card>
@@ -391,45 +475,51 @@ export default function StaffPage() {
 
         {/* ── SHIFTS TAB ────────────────────────────────────── */}
         <TabsContent value="shifts" className="mt-4 space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Create Shift */}
-            <Card>
-              <CardHeader><CardTitle className="text-base">Tạo ca làm việc</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <Input placeholder="Tên ca (VD: Ca sáng)" value={shiftForm.name} onChange={e => setShiftForm(f => ({ ...f, name: e.target.value }))} />
-                <div className="flex gap-2">
-                  <div className="flex-1"><p className="text-xs text-muted-foreground mb-1">Bắt đầu</p><Input type="time" value={shiftForm.startTime} onChange={e => setShiftForm(f => ({ ...f, startTime: e.target.value }))} /></div>
-                  <div className="flex-1"><p className="text-xs text-muted-foreground mb-1">Kết thúc</p><Input type="time" value={shiftForm.endTime} onChange={e => setShiftForm(f => ({ ...f, endTime: e.target.value }))} /></div>
-                </div>
-                <Input placeholder="Mô tả (tuỳ chọn)" value={shiftForm.description} onChange={e => setShiftForm(f => ({ ...f, description: e.target.value }))} />
-                <Button onClick={handleCreateShift} className="w-full bg-gradient-to-r from-violet-600 to-purple-500 text-white"><Plus className="h-4 w-4 mr-2" />Tạo ca</Button>
-              </CardContent>
-            </Card>
+          {isAdmin && (
+            <>
+              <SectionHeader icon={Pencil} title="Quản lý ca (Admin)" iconColor="text-violet-500" />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Create Shift */}
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Tạo ca làm việc</CardTitle></CardHeader>
+                  <CardContent className="space-y-3">
+                    <Input placeholder="Tên ca (VD: Ca sáng)" value={shiftForm.shiftName} onChange={e => setShiftForm(f => ({ ...f, shiftName: e.target.value }))} />
+                    <div className="flex gap-2">
+                      <div className="flex-1"><p className="text-xs text-muted-foreground mb-1">Bắt đầu</p><Input type="time" value={shiftForm.startTime} onChange={e => setShiftForm(f => ({ ...f, startTime: e.target.value }))} /></div>
+                      <div className="flex-1"><p className="text-xs text-muted-foreground mb-1">Kết thúc</p><Input type="time" value={shiftForm.endTime} onChange={e => setShiftForm(f => ({ ...f, endTime: e.target.value }))} /></div>
+                    </div>
+                    <Input type="number" step="0.1" placeholder="Hệ số lương (VD: 1.0, 1.5, 2.0)" value={shiftForm.coefficient} onChange={e => setShiftForm(f => ({ ...f, coefficient: e.target.value }))} />
+                    <Button onClick={handleCreateShift} className="w-full bg-gradient-to-r from-violet-600 to-purple-500 text-white"><Plus className="h-4 w-4 mr-2" />Tạo ca</Button>
+                  </CardContent>
+                </Card>
 
-            {/* Assign Shift */}
-            <Card>
-              <CardHeader><CardTitle className="text-base">Phân ca nhân viên</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <Input placeholder="Mã nhân viên (ID)" value={assignForm.employeeId} onChange={e => setAssignForm(f => ({ ...f, employeeId: e.target.value }))} />
-                <select className="w-full border rounded-md px-3 py-2 text-sm bg-background" value={assignForm.shiftId} onChange={e => setAssignForm(f => ({ ...f, shiftId: e.target.value }))}>
-                  <option value="">— Chọn ca —</option>
-                  {shifts.map(s => <option key={s.id} value={s.id}>{s.name} ({s.startTime} – {s.endTime})</option>)}
-                </select>
-                <Input type="date" value={assignForm.date} onChange={e => setAssignForm(f => ({ ...f, date: e.target.value }))} />
-                <Button onClick={handleAssignShift} className="w-full" variant="outline"><CalendarClock className="h-4 w-4 mr-2" />Phân ca</Button>
-              </CardContent>
-            </Card>
-          </div>
+                {/* Assign Shift */}
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Phân ca nhân viên</CardTitle></CardHeader>
+                  <CardContent className="space-y-3">
+                    <EmployeeSelect value={assignForm.employeeId} onChange={v => setAssignForm(f => ({ ...f, employeeId: v }))} />
+                    <select className="w-full border rounded-md px-3 py-2 text-sm bg-background" value={assignForm.shiftId} onChange={e => setAssignForm(f => ({ ...f, shiftId: e.target.value }))}>
+                      <option value="">— Chọn ca —</option>
+                      {shifts.map(s => <option key={s.id} value={s.id}>{s.shiftName} ({s.startTime} – {s.endTime})</option>)}
+                    </select>
+                    <Input type="date" value={assignForm.date} onChange={e => setAssignForm(f => ({ ...f, date: e.target.value }))} />
+                    <Button onClick={handleAssignShift} className="w-full" variant="outline"><CalendarClock className="h-4 w-4 mr-2" />Phân ca</Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
 
           {/* Shift list */}
+          <SectionHeader icon={Eye} title="Danh sách ca làm việc" iconColor="text-blue-500" />
           {shiftsLoading ? <div className="p-10 flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div> : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {shifts.map(s => (
                 <Card key={s.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><CalendarClock className="h-4 w-4 text-violet-500" />{s.name}</CardTitle></CardHeader>
+                  <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><CalendarClock className="h-4 w-4 text-violet-500" />{s.shiftName}</CardTitle></CardHeader>
                   <CardContent>
                     <p className="text-sm text-muted-foreground">{s.startTime} – {s.endTime}</p>
-                    {s.description && <p className="text-xs text-muted-foreground mt-1">{s.description}</p>}
+                    <p className="text-xs text-muted-foreground mt-1">Hệ số: {s.coefficient || 1.0}</p>
                   </CardContent>
                 </Card>
               ))}

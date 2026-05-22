@@ -20,7 +20,7 @@ public class ReportResponse {
     String status;
     LocalDate periodFrom;
     LocalDate periodTo;
-    Long requestedBy;
+    String requestedBy;
     LocalDateTime requestedAt;
     LocalDateTime completedAt;
 }

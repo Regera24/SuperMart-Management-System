@@ -8,13 +8,13 @@ import * as reportApi from "@/api/reportApi"
 import * as orderApi from "@/api/orderApi"
 import * as productApi from "@/api/productApi"
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area
 } from "recharts"
 import { Download, FileText, Loader2, BarChart3, TrendingUp, Calendar, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/contexts/AuthContext"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, safeNum } from "@/lib/utils"
 
 const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"]
 
@@ -48,32 +48,29 @@ export default function ReportsPage() {
     async function fetchAll() {
       setLoading(true)
       try {
-        const [reportsRes, ordersRes, productsRes, categoriesRes] = await Promise.allSettled([
+        const [reportsRes, statsRes, productsRes, categoriesRes] = await Promise.allSettled([
           reportApi.getReports({ page: 0, size: 20 }),
-          orderApi.getOrders({ page: 0, size: 1000 }),
+          orderApi.getOrderStatistics(),
           productApi.getProducts({ page: 0, size: 1000 }),
           productApi.getRootCategories(),
         ])
 
         if (reportsRes.status === "fulfilled") setReports(reportsRes.value?.content || [])
 
-        // Build monthly/daily revenue from orders
-        if (ordersRes.status === "fulfilled" && ordersRes.value?.content?.length) {
-          const orders = ordersRes.value.content.filter(o => o.status === "COMPLETED" || o.finalAmount > 0)
-          const monthMap = {}
-          const dayMap = {}
-          orders.forEach(o => {
-            const d = new Date(o.createdAt)
-            const monthKey = `T${d.getMonth() + 1}`
-            const dayKey = String(d.getDate()).padStart(2, "0")
-            const amt = o.finalAmount ?? o.totalAmount ?? 0
-            monthMap[monthKey] = monthMap[monthKey] || { revenue: 0, orders: 0 }
-            monthMap[monthKey].revenue += amt
-            monthMap[monthKey].orders += 1
-            dayMap[dayKey] = (dayMap[dayKey] || 0) + amt
-          })
-          setMonthlyData(Object.entries(monthMap).map(([month, d]) => ({ month, revenue: d.revenue, orders: d.orders })))
-          setDailyData(Object.entries(dayMap).sort(([a], [b]) => a.localeCompare(b)).map(([day, revenue]) => ({ day, revenue })))
+        // Build monthly & daily revenue from backend statistics
+        const stats = statsRes.status === "fulfilled" ? statsRes.value : null
+        if (stats?.monthlySummary?.length) {
+          setMonthlyData(stats.monthlySummary.map(m => ({
+            month: m.month,
+            revenue: safeNum(m.revenue),
+            orders: safeNum(m.orders),
+          })))
+        }
+        if (stats?.dailyRevenue?.length) {
+          setDailyData(stats.dailyRevenue.map(d => ({
+            day: d.name,
+            revenue: safeNum(d.revenue),
+          })))
         }
 
         // Category distribution
@@ -89,8 +86,10 @@ export default function ReportsPage() {
             })
           })
           setCategoryData(Object.entries(catCount).map(([name, value]) => ({ name, value })))
+
+          // Top products by price (best we can do without sales count per product)
           const sorted = [...products].sort((a, b) => (b.price || 0) - (a.price || 0)).slice(0, 5)
-          setTopProducts(sorted.map(p => ({ name: p.name, sold: 0, revenue: p.price || 0 })))
+          setTopProducts(sorted.map(p => ({ name: p.name, revenue: p.price || 0 })))
         }
       } catch { setReports([]) }
       finally { setLoading(false) }
@@ -215,7 +214,7 @@ export default function ReportsPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-lg flex items-center gap-2"><Calendar className="h-5 w-5 text-blue-500" />Doanh thu theo ngày</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-lg flex items-center gap-2"><Calendar className="h-5 w-5 text-blue-500" />Doanh thu theo ngày (7 ngày gần nhất)</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
               <AreaChart data={dailyData}>
