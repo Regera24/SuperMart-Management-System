@@ -22,7 +22,7 @@ public class Employee {
     private Long id;
 
     @Column(name = "account_id", unique = true, nullable = false)
-    private Long accountId;
+    private String accountId;
 
     @Column(name = "full_name", length = 255, nullable = false)
     private String fullName;

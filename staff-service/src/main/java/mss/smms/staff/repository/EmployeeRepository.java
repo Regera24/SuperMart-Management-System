@@ -12,8 +12,8 @@ import java.util.Optional;
 
 @Repository
 public interface EmployeeRepository extends JpaRepository<Employee, Long> {
-    Optional<Employee> findByAccountId(Long accountId);
-    boolean existsByAccountId(Long accountId);
+    Optional<Employee> findByAccountId(String accountId);
+    boolean existsByAccountId(String accountId);
 
     @Query("SELECT e FROM Employee e WHERE e.fullName LIKE %:q% OR e.phone LIKE %:q% OR e.email LIKE %:q%")
     Page<Employee> search(@Param("q") String query, Pageable pageable);

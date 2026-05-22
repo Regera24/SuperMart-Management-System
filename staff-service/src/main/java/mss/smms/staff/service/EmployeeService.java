@@ -12,7 +12,7 @@ import java.util.List;
 public interface EmployeeService {
     EmployeeResponse createEmployee(EmployeeCreateRequest request);
     EmployeeResponse getEmployee(Long id);
-    EmployeeResponse getEmployeeByAccountId(Long accountId);
+    EmployeeResponse getEmployeeByAccountId(String accountId);
     Page<EmployeeResponse> searchEmployees(String query, Pageable pageable);
     Page<EmployeeResponse> getAllEmployees(Pageable pageable);
     EmployeeResponse updateEmployee(Long id, EmployeeUpdateRequest request);

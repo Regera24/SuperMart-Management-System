@@ -62,7 +62,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     @Override
-    public EmployeeResponse getEmployeeByAccountId(Long accountId) {
+    public EmployeeResponse getEmployeeByAccountId(String accountId) {
         Employee e = employeeRepository.findByAccountId(accountId)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND));
         return toResponse(e);

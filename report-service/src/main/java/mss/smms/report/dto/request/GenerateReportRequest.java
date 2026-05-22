@@ -16,5 +16,5 @@ public class GenerateReportRequest {
     String parameters;  // JSON string for flexible parameters
     LocalDate periodFrom;
     LocalDate periodTo;
-    Long requestedBy;
+    String requestedBy;
 }

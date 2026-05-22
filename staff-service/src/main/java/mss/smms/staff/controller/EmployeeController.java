@@ -29,7 +29,7 @@ public class EmployeeController {
     /* ── Department endpoints ── */
 
     @PostMapping("/departments")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<DepartmentResponse>> createDepartment(
             @RequestParam String name,
             @RequestParam(required = false) String description) {
@@ -52,7 +52,7 @@ public class EmployeeController {
     /* ── Employee endpoints ── */
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<EmployeeResponse>> create(
             @Valid @RequestBody EmployeeCreateRequest request) {
         return ResponseEntity.ok(ApiResponse.<EmployeeResponse>builder()
@@ -61,7 +61,7 @@ public class EmployeeController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Page<EmployeeResponse>>> list(
             @RequestParam(required = false) String q,
             Pageable pageable) {
@@ -73,7 +73,7 @@ public class EmployeeController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<EmployeeResponse>> get(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.<EmployeeResponse>builder()
                 .code(200).message("Success")
@@ -81,14 +81,14 @@ public class EmployeeController {
     }
 
     @GetMapping("/by-account/{accountId}")
-    public ResponseEntity<ApiResponse<EmployeeResponse>> getByAccount(@PathVariable Long accountId) {
+    public ResponseEntity<ApiResponse<EmployeeResponse>> getByAccount(@PathVariable String accountId) {
         return ResponseEntity.ok(ApiResponse.<EmployeeResponse>builder()
                 .code(200).message("Success")
                 .data(employeeService.getEmployeeByAccountId(accountId)).build());
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<EmployeeResponse>> update(
             @PathVariable Long id,
             @RequestBody EmployeeUpdateRequest request) {

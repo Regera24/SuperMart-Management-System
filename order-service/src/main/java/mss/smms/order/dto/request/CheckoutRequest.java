@@ -14,7 +14,7 @@ import java.util.UUID;
 @Data
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class CheckoutRequest {
-    UUID customerId;
+    Long customerId;
     BigDecimal discountAmount;
     String note;
     @NotNull Long warehouseId;

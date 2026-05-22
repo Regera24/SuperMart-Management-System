@@ -16,10 +16,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AppException.class)
     public ResponseEntity<ApiResponse<Void>> handleAppException(AppException ex) {
         ErrorCode ec = ex.getErrorCode();
-        log.warn("AppException: {}", ec.getMessage());
+        String msg = ex.getCustomMessage() != null ? ex.getCustomMessage() : ec.getMessage();
+        log.warn("AppException: {}", msg);
         return ResponseEntity.status(ec.getHttpStatusCode())
                 .body(ApiResponse.<Void>builder()
-                        .code(ec.getCode()).message(ec.getMessage()).build());
+                        .code(ec.getCode()).message(msg).build());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

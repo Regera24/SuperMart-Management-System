@@ -38,7 +38,6 @@ public class AttendanceController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<ApiResponse<Page<AttendanceLogResponse>>> list(
             @RequestParam(required = false) Long employeeId,
             @RequestParam(required = false) String from,

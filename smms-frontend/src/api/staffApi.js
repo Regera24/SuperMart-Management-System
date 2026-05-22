@@ -48,92 +48,120 @@ export async function createDepartment(name, description) {
 // === Attendance (Chấm công) ===
 
 export async function checkIn(data) {
-  const resp = await api.post("/api/v1/hr/attendance/check-in", data)
+  const resp = await api.post("/api/v1/staff/attendance/check-in", data)
   return unwrap(resp)
 }
 
-export async function checkOut(data) {
-  const resp = await api.post("/api/v1/hr/attendance/check-out", data)
+export async function checkOut(employeeId) {
+  const resp = await api.post(`/api/v1/staff/attendance/check-out/${employeeId}`)
   return unwrap(resp)
 }
 
 export async function getAttendanceLogs(employeeId, params = {}) {
-  const resp = await api.get(`/api/v1/hr/attendance/${employeeId}`, { params })
-  return unwrap(resp) || []
+  const resp = await api.get("/api/v1/staff/attendance", {
+    params: { employeeId, ...params },
+  })
+  return unwrapPage(resp)
 }
 
 // === Leave (Nghỉ phép) ===
 
 export async function submitLeaveRequest(data) {
-  const resp = await api.post("/api/v1/hr/leave", data)
+  // Ensure date strings include time portion for ISO parse
+  const payload = {
+    ...data,
+    startDate: data.startDate && !data.startDate.includes("T") ? data.startDate + "T00:00:00" : data.startDate,
+    endDate: data.endDate && !data.endDate.includes("T") ? data.endDate + "T23:59:59" : data.endDate,
+  }
+  const resp = await api.post("/api/v1/staff/leave", payload)
   return unwrap(resp)
 }
 
 export async function approveLeave(id) {
-  const resp = await api.put(`/api/v1/hr/leave/${id}/approve`)
+  const resp = await api.put(`/api/v1/staff/leave/${id}/approve`)
   return unwrap(resp)
 }
 
 export async function rejectLeave(id) {
-  const resp = await api.put(`/api/v1/hr/leave/${id}/reject`)
+  const resp = await api.put(`/api/v1/staff/leave/${id}/reject`)
   return unwrap(resp)
 }
 
 export async function getLeaveRequests(employeeId) {
-  const resp = await api.get(`/api/v1/hr/leave/${employeeId}`)
-  return unwrap(resp) || []
+  const resp = await api.get("/api/v1/staff/leave", {
+    params: { employeeId },
+  })
+  return unwrapPage(resp)
 }
 
-export async function getAllLeaveRequests() {
-  const resp = await api.get("/api/v1/hr/leave")
-  return unwrap(resp) || []
+export async function getMyLeaveRequests(employeeId) {
+  const resp = await api.get("/api/v1/staff/leave/my", {
+    params: { employeeId },
+  })
+  return unwrapPage(resp)
+}
+
+export async function getAllLeaveRequests(params = {}) {
+  const resp = await api.get("/api/v1/staff/leave", { params })
+  return unwrapPage(resp)
 }
 
 // === Payroll (Bảng lương) ===
 
 export async function generatePayroll(data) {
-  const resp = await api.post("/api/v1/hr/payroll/generate", data)
+  const resp = await api.post("/api/v1/staff/payroll/generate", data)
   return unwrap(resp)
 }
 
 export async function markPayrollPaid(id) {
-  const resp = await api.put(`/api/v1/hr/payroll/${id}/paid`)
+  const resp = await api.put(`/api/v1/staff/payroll/${id}/pay`)
   return unwrap(resp)
 }
 
-export async function getPayrollByEmployee(employeeId) {
-  const resp = await api.get(`/api/v1/hr/payroll/${employeeId}`)
-  return unwrap(resp) || []
+export async function getPayrollByEmployee(employeeId, params = {}) {
+  const resp = await api.get("/api/v1/staff/payroll", {
+    params: { employeeId, ...params },
+  })
+  return unwrapPage(resp)
 }
 
-export async function getAllPayroll() {
-  const resp = await api.get("/api/v1/hr/payroll")
-  return unwrap(resp) || []
+export async function getAllPayroll(params = {}) {
+  const resp = await api.get("/api/v1/staff/payroll", { params })
+  return unwrapPage(resp)
+}
+
+export async function getMyPayroll(employeeId, params = {}) {
+  const resp = await api.get("/api/v1/staff/payroll/my", {
+    params: { employeeId, ...params },
+  })
+  return unwrapPage(resp)
 }
 
 // === Shifts (Ca làm việc) ===
 
 export async function createShift(data) {
-  const resp = await api.post("/api/v1/hr/shifts", data)
+  const resp = await api.post("/api/v1/staff/shifts", data)
   return unwrap(resp)
 }
 
 export async function getShifts() {
-  const resp = await api.get("/api/v1/hr/shifts")
+  const resp = await api.get("/api/v1/staff/shifts")
   return unwrap(resp) || []
 }
 
 export async function assignShift(data) {
-  const resp = await api.post("/api/v1/hr/shifts/assign", data)
+  const resp = await api.post("/api/v1/staff/shifts/assign", data)
   return unwrap(resp)
 }
 
-export async function getShiftSchedule(employeeId) {
-  const resp = await api.get(`/api/v1/hr/shifts/schedule/${employeeId}`)
-  return unwrap(resp) || []
+export async function getShiftSchedule(employeeId, params = {}) {
+  const resp = await api.get("/api/v1/staff/shifts/schedules", {
+    params: { employeeId, ...params },
+  })
+  return unwrapPage(resp)
 }
 
-export async function getAllShiftSchedules() {
-  const resp = await api.get("/api/v1/hr/shifts/schedule")
-  return unwrap(resp) || []
+export async function getAllShiftSchedules(params = {}) {
+  const resp = await api.get("/api/v1/staff/shifts/schedules", { params })
+  return unwrapPage(resp)
 }

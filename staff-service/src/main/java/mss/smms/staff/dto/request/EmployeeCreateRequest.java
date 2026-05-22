@@ -14,7 +14,7 @@ import java.math.BigDecimal;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class EmployeeCreateRequest {
     @NotNull(message = "accountId is required")
-    Long accountId;
+    String accountId;
     @NotBlank(message = "fullName is required")
     String fullName;
     String phone;
