@@ -1,4 +1,3 @@
-version: '3.8'
 
 # ═══════════════════════════════════════════════════════════════
 #  SuperMart Management System — Docker Compose (Full Stack)
@@ -66,7 +65,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: "12345"
-      POSTGRES_MULTIPLE_DATABASES: smms_identity_service,smms_order_service,smms_report_service,smms_staff_service
+      POSTGRES_DB: postgres
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./docker/postgres-init:/docker-entrypoint-initdb.d
@@ -101,9 +100,10 @@ services:
       - "3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: "12345"
-      MYSQL_DATABASE: smms_mysql
+      MYSQL_DATABASE: smms_identity_service
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p12345"]
       interval: 10s
@@ -111,6 +111,19 @@ services:
       retries: 5
 
   # ─────────────────────────── SERVICE REGISTRY ──────────────────
+
+  redis:
+    image: redis:7-alpine
+    container_name: smms-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   eureka-server:
     build:
@@ -138,7 +151,7 @@ services:
     container_name: smms-api-gateway
     image: smms/api-gateway:latest
     ports:
-      - "8888:8888"
+      - "8080:8080"
     environment:
       <<: *common-env
     depends_on:
@@ -154,14 +167,19 @@ services:
     container_name: smms-identity
     image: smms/identity-service:latest
     ports:
-      - "8081:8081"
+      - "8082:8082"
     environment:
       <<: *common-env
-      DB_URL: jdbc:postgresql://postgres:5432/smms_identity_service
-      DB_USER: postgres
-      DB_PASSWORD: "12345"
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/smms_identity_service
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: "12345"
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
     depends_on:
-      postgres:
+      mysql:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       eureka-server:
         condition: service_healthy
@@ -173,7 +191,7 @@ services:
     container_name: smms-product
     image: smms/product-service:latest
     ports:
-      - "8082:8082"
+      - "8086:8086"
     environment:
       <<: *common-env
       MONGO_URI: mongodb://root:12345@mongo:27017/smms_product_service?authSource=admin
@@ -193,9 +211,11 @@ services:
       - "8083:8083"
     environment:
       <<: *common-env
-      MONGO_URI: mongodb://root:12345@mongo:27017/smms_inventory_service?authSource=admin
+      DB_URL: jdbc:postgresql://postgres:5432/smms_inventory_service
+      DB_USER: postgres
+      DB_PASSWORD: "12345"
     depends_on:
-      mongo:
+      postgres:
         condition: service_healthy
       kafka:
         condition: service_healthy
@@ -233,9 +253,13 @@ services:
       - "8085:8085"
     environment:
       <<: *common-env
-      MONGO_URI: mongodb://root:12345@mongo:27017/smms_customer_service?authSource=admin
+      DB_URL: jdbc:postgresql://postgres:5432/smms_customer_service
+      DB_USER: postgres
+      DB_PASSWORD: "12345"
     depends_on:
-      mongo:
+      postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
       eureka-server:
         condition: service_healthy
@@ -247,14 +271,14 @@ services:
     container_name: smms-staff
     image: smms/staff-service:latest
     ports:
-      - "8086:8086"
+      - "8089:8089"
     environment:
       <<: *common-env
-      DB_URL: jdbc:postgresql://postgres:5432/smms_staff_service
-      DB_USER: postgres
-      DB_PASSWORD: "12345"
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/smms_staff_service
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: "12345"
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
       eureka-server:
         condition: service_healthy
@@ -309,6 +333,8 @@ services:
     build:
       context: ./smms-frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8080
     container_name: smms-frontend
     image: smms/frontend:latest
     ports:
@@ -330,4 +356,5 @@ volumes:
   postgres-data:
   mongo-data:
   mysql-data:
+  redis-data:
   report-files:

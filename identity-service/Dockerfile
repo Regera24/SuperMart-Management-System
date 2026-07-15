@@ -8,15 +8,6 @@ FROM eclipse-temurin:21-jdk-alpine AS builder
 
 WORKDIR /workspace
 
-# Cache Maven dependencies first (only re-downloads when pom.xml changes)
-COPY pom.xml .
-COPY .mvn/ .mvn/ 2>/dev/null || true
-COPY mvnw* ./ 2>/dev/null || true
-
-# Download dependencies offline (cache layer)
-RUN mvn dependency:go-offline -q 2>/dev/null || \
-    find /root/.m2 -type f || true
-
 COPY pom.xml .
 RUN --mount=type=cache,target=/root/.m2 \
     mvn dependency:resolve -q
@@ -58,9 +49,9 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport \
                -XX:+ExitOnOutOfMemoryError \
                -Djava.security.egd=file:/dev/./urandom"
 
-EXPOSE 8080
+EXPOSE 8082
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8080/actuator/health || exit 1
+    CMD curl -f http://localhost:8082/actuator/health || exit 1
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS org.springframework.boot.loader.launch.JarLauncher"]
