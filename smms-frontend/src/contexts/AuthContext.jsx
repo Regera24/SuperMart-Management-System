@@ -30,7 +30,7 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (username, password) => {
     try {
       const tokenData = await authApi.login(username, password)
-      const { accessToken, refreshToken } = tokenData
+      const { accessToken } = tokenData
 
       // Decode JWT để lấy user info
       const userInfo = decodeJwt(accessToken) || { id: username, username, roles: [], fullName: username }
@@ -39,7 +39,7 @@ export function AuthProvider({ children }) {
       setToken(accessToken)
       localStorage.setItem("smms-user", JSON.stringify(userInfo))
       localStorage.setItem("smms-token", accessToken)
-      if (refreshToken) localStorage.setItem("smms-refresh-token", refreshToken)
+      localStorage.removeItem("smms-refresh-token")
 
       return { success: true, user: userInfo }
     } catch (err) {

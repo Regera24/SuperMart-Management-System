@@ -74,7 +74,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     private String slugify(String input) {
-        String normalized = Normalizer.normalize(input, Normalizer.Form.NFD);
+        String normalized = Normalizer.normalize(input.replace('\u0110', 'D').replace('\u0111', 'd'), Normalizer.Form.NFD);
         Pattern pattern = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
         return pattern.matcher(normalized).replaceAll("")
                 .toLowerCase(Locale.ENGLISH).replaceAll("[^\\w\\s-]", "")

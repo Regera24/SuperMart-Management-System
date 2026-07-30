@@ -40,7 +40,11 @@ public class SecurityConfig {
                     "/auth/login",
                     "/auth/refresh",
                     "/auth/forgot-password",
-                    "/auth/reset-password"
+                    "/auth/reset-password",
+                    "/api/auth/login",
+                    "/api/auth/refresh",
+                    "/api/auth/forgot-password",
+                    "/api/auth/reset-password"
                 ).permitAll()
                 .pathMatchers("/actuator/**").permitAll()
                 .pathMatchers("/fallback/**").permitAll()

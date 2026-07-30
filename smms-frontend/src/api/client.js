@@ -7,6 +7,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || ""
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 15000,
+  withCredentials: true,
   headers: { "Content-Type": "application/json" },
 })
 
@@ -29,7 +30,16 @@ api.interceptors.response.use(
     const originalRequest = error.config
 
     // Bỏ qua interceptor cho các auth endpoints — lỗi 401 ở đây là expected (sai mật khẩu, v.v.)
-    const authPaths = ["/auth/login", "/auth/refresh", "/auth/forgot-password", "/auth/reset-password"]
+    const authPaths = [
+      "/auth/login",
+      "/auth/refresh",
+      "/auth/forgot-password",
+      "/auth/reset-password",
+      "/api/auth/login",
+      "/api/auth/refresh",
+      "/api/auth/forgot-password",
+      "/api/auth/reset-password",
+    ]
     if (authPaths.some((p) => originalRequest.url?.includes(p))) {
       return Promise.reject(error)
     }
@@ -37,30 +47,23 @@ api.interceptors.response.use(
     // 401 → thử refresh token
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true
-      const refreshToken = localStorage.getItem("smms-refresh-token")
-
-      if (refreshToken) {
-        try {
-          const resp = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken })
-          const { accessToken, refreshToken: newRefresh } = resp.data.data
-          localStorage.setItem("smms-token", accessToken)
-          if (newRefresh) localStorage.setItem("smms-refresh-token", newRefresh)
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`
-          return api(originalRequest)
-        } catch {
-          // Refresh failed → logout
-          localStorage.removeItem("smms-token")
-          localStorage.removeItem("smms-refresh-token")
-          localStorage.removeItem("smms-user")
-          window.location.href = "/login"
-          return Promise.reject(error)
-        }
+      try {
+        const resp = await axios.post(`${API_BASE_URL}/api/auth/refresh`, null, {
+          withCredentials: true,
+        })
+        const { accessToken } = resp.data.data
+        localStorage.setItem("smms-token", accessToken)
+        localStorage.removeItem("smms-refresh-token")
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`
+        return api(originalRequest)
+      } catch {
+        // Refresh failed → logout
+        localStorage.removeItem("smms-token")
+        localStorage.removeItem("smms-refresh-token")
+        localStorage.removeItem("smms-user")
+        window.location.href = "/login"
+        return Promise.reject(error)
       }
-
-      // No refresh token → logout
-      localStorage.removeItem("smms-token")
-      localStorage.removeItem("smms-user")
-      window.location.href = "/login"
     }
 
     return Promise.reject(error)

@@ -1,20 +1,34 @@
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { formatCurrency, safeNum } from "@/lib/utils"
-import { AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
-import { DollarSign, ShoppingCart, Package, Users, TrendingUp, TrendingDown, AlertTriangle, ArrowRight, Clock, CalendarClock } from "lucide-react"
+﻿import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { formatCurrency, safeNum } from "@/lib/utils"
 import { useAuth } from "@/contexts/AuthContext"
 import * as orderApi from "@/api/orderApi"
 import * as productApi from "@/api/productApi"
 import * as customerApi from "@/api/customerApi"
 import * as inventoryApi from "@/api/inventoryApi"
+import {
+  AlertTriangle,
+  ArrowRight,
+  ArrowUpRight,
+  CalendarClock,
+  Clock,
+  DollarSign,
+  Gauge,
+  Package,
+  ReceiptText,
+  ShoppingCart,
+  Store,
+  TrendingDown,
+  TrendingUp,
+  Users,
+  WalletCards,
+} from "lucide-react"
 
-const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"]
+const COLORS = ["#16a34a", "#0284c7", "#f59e0b", "#dc2626", "#7c3aed", "#db2777"]
 
-// Helper: compute trend % between today and yesterday
 function calcTrend(today, yesterday) {
   const t = safeNum(today)
   const y = safeNum(yesterday)
@@ -22,8 +36,19 @@ function calcTrend(today, yesterday) {
   const pct = ((t - y) / y) * 100
   return (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%"
 }
+
 function isTrendUp(today, yesterday) {
   return safeNum(today) >= safeNum(yesterday)
+}
+
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="rounded-md border border-border bg-popover px-3 py-2 text-sm shadow-xl">
+      <p className="font-extrabold">{label}</p>
+      <p className="text-primary">{formatCurrency(payload[0].value)}</p>
+    </div>
+  )
 }
 
 export default function DashboardPage() {
@@ -58,7 +83,6 @@ export default function DashboardPage() {
         const lowStockData = lowStockRes.status === "fulfilled" ? lowStockRes.value : null
         const categoriesData = categoriesRes.status === "fulfilled" ? categoriesRes.value : null
 
-        // KPI: use statistics endpoint for revenue & order count
         setKpi({
           revenue: safeNum(statsData?.todayRevenue),
           orders: safeNum(statsData?.totalOrders),
@@ -66,7 +90,6 @@ export default function DashboardPage() {
           customers: customersData?.totalElements || 0,
         })
 
-        // Trend: compute from today vs yesterday
         setTrends({
           revenueTrend: calcTrend(statsData?.todayRevenue, statsData?.yesterdayRevenue),
           revenueUp: isTrendUp(statsData?.todayRevenue, statsData?.yesterdayRevenue),
@@ -74,24 +97,18 @@ export default function DashboardPage() {
           ordersUp: isTrendUp(statsData?.todayOrders, statsData?.yesterdayOrders),
         })
 
-        // Revenue chart: last 7 days from backend
         if (statsData?.dailyRevenue?.length) {
-          setRevenueChart(statsData.dailyRevenue.map(d => ({
-            name: d.name,
-            revenue: safeNum(d.revenue),
-          })))
+          setRevenueChart(statsData.dailyRevenue.map((item) => ({ name: item.name, revenue: safeNum(item.revenue) })))
         }
 
-        // Category chart: compute from products + categories
         if (productsRes.status === "fulfilled" && categoriesData?.length) {
-          // Need all products for category counting
           const allProductsRes = await productApi.getProducts({ page: 0, size: 1000 })
           const products = allProductsRes?.content || []
-          const catMap = Object.fromEntries(categoriesData.map(c => [c.id, c.name]))
+          const catMap = Object.fromEntries(categoriesData.map((category) => [category.id, category.name]))
           const catCount = {}
-          products.forEach(p => {
-            (p.categoryIds || []).forEach(cid => {
-              const name = catMap[cid] || "Khác"
+          products.forEach((product) => {
+            ;(product.categoryIds || []).forEach((categoryId) => {
+              const name = catMap[categoryId] || "Khác"
               catCount[name] = (catCount[name] || 0) + 1
             })
           })
@@ -102,7 +119,7 @@ export default function DashboardPage() {
         if (ordersData?.content?.length) setRecentOrders(ordersData.content.slice(0, 5))
         if (lowStockData?.length) setLowStock(lowStockData)
       } catch {
-        // Error — data stays empty
+        // Keep empty dashboard state when one of the service calls fails.
       } finally {
         setLoading(false)
       }
@@ -110,203 +127,315 @@ export default function DashboardPage() {
     fetchDashboard()
   }, [])
 
-  // Helper: get order amount
-  const getAmount = (o) => o.finalAmount ?? o.totalAmount ?? 0
-  // Helper: display order id
-  const displayId = (o) => {
-    if (o.orderCode) return o.orderCode
-    const id = String(o.id || "")
+  const getAmount = (order) => order.finalAmount ?? order.totalAmount ?? 0
+  const displayId = (order) => {
+    if (order.orderCode) return order.orderCode
+    const id = String(order.id || "")
     if (id.length > 20) return id.substring(0, 8).toUpperCase()
     return id
   }
-  // Helper: get low stock fields
-  const getLowSku = (s) => s.productSku || s.sku || "—"
-  const getLowQty = (s) => s.quantityOnHand ?? s.quantity ?? 0
+  const getLowSku = (stock) => stock.productSku || stock.sku || "—"
+  const getLowQty = (stock) => stock.quantityOnHand ?? stock.quantity ?? 0
 
   const kpis = [
-    { title: "Doanh thu hôm nay", value: formatCurrency(kpi.revenue), icon: DollarSign, trend: trends.revenueTrend, up: trends.revenueUp, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-    { title: "Đơn hàng", value: safeNum(kpi.orders).toLocaleString(), icon: ShoppingCart, trend: trends.ordersTrend, up: trends.ordersUp, color: "text-blue-500", bg: "bg-blue-500/10" },
-    { title: "Sản phẩm", value: safeNum(kpi.products).toLocaleString(), icon: Package, trend: null, up: true, color: "text-amber-500", bg: "bg-amber-500/10" },
-    { title: "Khách hàng", value: safeNum(kpi.customers).toLocaleString(), icon: Users, trend: null, up: true, color: "text-purple-500", bg: "bg-purple-500/10" },
+    {
+      title: "Doanh thu hôm nay",
+      value: formatCurrency(kpi.revenue),
+      icon: DollarSign,
+      trend: trends.revenueTrend,
+      up: trends.revenueUp,
+      tone: "emerald",
+      caption: "Dòng tiền tại quầy",
+    },
+    {
+      title: "Đơn hàng",
+      value: safeNum(kpi.orders).toLocaleString(),
+      icon: ShoppingCart,
+      trend: trends.ordersTrend,
+      up: trends.ordersUp,
+      tone: "blue",
+      caption: "Tổng đơn trong hệ thống",
+    },
+    {
+      title: "Sản phẩm",
+      value: safeNum(kpi.products).toLocaleString(),
+      icon: Package,
+      trend: null,
+      up: true,
+      tone: "amber",
+      caption: "SKU đang quản lý",
+    },
+    {
+      title: "Khách hàng",
+      value: safeNum(kpi.customers).toLocaleString(),
+      icon: Users,
+      trend: null,
+      up: true,
+      tone: "purple",
+      caption: "Hồ sơ loyalty",
+    },
   ]
+
+  const toneClasses = {
+    emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
+    blue: "bg-blue-500/10 text-blue-600 dark:text-blue-300",
+    amber: "bg-amber-500/10 text-amber-600 dark:text-amber-300",
+    purple: "bg-purple-500/10 text-purple-600 dark:text-purple-300",
+  }
+
+  if (!isManager) {
+    const employeeActions = [
+      {
+        title: "Chấm công",
+        desc: "Check-in / Check-out và xem lịch sử",
+        icon: Clock,
+        tone: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
+        onClick: () => navigate("/my-attendance"),
+      },
+      {
+        title: "Lịch ca & đơn từ",
+        desc: "Xem lịch làm và gửi đơn nghỉ phép",
+        icon: CalendarClock,
+        tone: "bg-blue-500/10 text-blue-600 dark:text-blue-300",
+        onClick: () => navigate("/my-attendance"),
+      },
+      {
+        title: "Xem lương",
+        desc: "Thông tin lương và lịch sử nhận lương",
+        icon: WalletCards,
+        tone: "bg-purple-500/10 text-purple-600 dark:text-purple-300",
+        onClick: () => {
+          navigate("/my-attendance")
+          setTimeout(() => document.querySelector('[value="salary"]')?.click(), 100)
+        },
+      },
+    ]
+
+    return (
+      <div className="space-y-6">
+        <section className="retail-card overflow-hidden p-6">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-extrabold text-primary">
+                <Store className="h-4 w-4" /> Personal work hub
+              </div>
+              <h1 className="text-3xl font-extrabold tracking-tight">Chào mừng bạn đến với SMMS!</h1>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Các tác vụ trong ca làm được gom lại để bạn thao tác nhanh hơn.</p>
+            </div>
+            <div className="rounded-md border border-border bg-muted/50 px-4 py-3 text-sm font-bold text-muted-foreground">
+              Hôm nay · {new Date().toLocaleDateString("vi-VN")}
+            </div>
+          </div>
+        </section>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {employeeActions.map((action) => (
+            <button key={action.title} className="retail-card group p-5 text-left transition hover:-translate-y-1 hover:border-primary/35" onClick={action.onClick}>
+              <div className="flex items-center gap-4">
+                <div className={`grid h-12 w-12 place-items-center rounded-md ${action.tone}`}>
+                  <action.icon className="h-6 w-6" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-extrabold">{action.title}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">{action.desc}</p>
+                </div>
+                <ArrowUpRight className="ml-auto h-5 w-5 text-muted-foreground transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-primary" />
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
-      {!isManager ? (
-        /* ── Employee welcome view ── */
-        <>
+      <section className="retail-card overflow-hidden">
+        <div className="grid gap-6 p-6 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
-            <h1 className="text-2xl font-bold">Chào mừng bạn đến với SMMS!</h1>
-            <p className="text-sm text-muted-foreground mt-1">Sử dụng menu bên trái để truy cập các chức năng của bạn.</p>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-md bg-emerald-500/10 px-3 py-1.5 text-xs font-extrabold text-emerald-700 dark:text-emerald-300">
+              <Gauge className="h-4 w-4" />
+              Store pulse {loading ? "· đang đồng bộ" : "· đã cập nhật"}
+            </div>
+            <h1 className="text-3xl font-extrabold tracking-tight">Tổng quan vận hành hôm nay</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Theo dõi dòng tiền, đơn hàng, tồn kho và dữ liệu khách hàng trong một bảng điều phối gọn, dễ quét.
+            </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate("/my-attendance")}>
-              <CardContent className="p-5">
-                <div className="flex items-center gap-4">
-                  <div className="rounded-xl p-3 bg-emerald-500/10">
-                    <Clock className="h-6 w-6 text-emerald-500" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">Chấm công</p>
-                    <p className="text-xs text-muted-foreground">Check-in / Check-out & xem lịch sử</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate("/my-attendance")}>
-              <CardContent className="p-5">
-                <div className="flex items-center gap-4">
-                  <div className="rounded-xl p-3 bg-blue-500/10">
-                    <CalendarClock className="h-6 w-6 text-blue-500" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">Lịch ca & Đơn từ</p>
-                    <p className="text-xs text-muted-foreground">Xem lịch ca làm & gửi đơn nghỉ phép</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => { navigate("/my-attendance"); setTimeout(() => document.querySelector('[value="salary"]')?.click(), 100) }}>
-              <CardContent className="p-5">
-                <div className="flex items-center gap-4">
-                  <div className="rounded-xl p-3 bg-purple-500/10">
-                    <DollarSign className="h-6 w-6 text-purple-500" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">Xem lương</p>
-                    <p className="text-xs text-muted-foreground">Thông tin lương & lịch sử nhận lương</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </>
-      ) : (
-        /* ── Manager/Admin statistics view ── */
-        <>
-      <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold">Tổng quan</h1><p className="text-sm text-muted-foreground">Xin chào! Đây là tổng quan hoạt động hôm nay.</p></div>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {kpis.map((k) => (
-          <Card key={k.title} className="hover:shadow-lg transition-shadow">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">{k.title}</p>
-                  <p className="text-2xl font-bold">{k.value}</p>
-                  {k.trend !== null && (
-                    <div className="flex items-center gap-1 text-xs">
-                      {k.up ? <TrendingUp className="h-3 w-3 text-emerald-500" /> : <TrendingDown className="h-3 w-3 text-red-500" />}
-                      <span className={k.up ? "text-emerald-500" : "text-red-500"}>{k.trend}</span>
-                      <span className="text-muted-foreground">so với hôm qua</span>
-                    </div>
-                  )}
-                </div>
-                <div className={`rounded-xl p-3 ${k.bg}`}><k.icon className={`h-6 w-6 ${k.color}`} /></div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {[
+              { label: "Đơn mới", value: safeNum(kpi.orders).toLocaleString(), icon: ReceiptText },
+              { label: "SKU", value: safeNum(kpi.products).toLocaleString(), icon: Package },
+              { label: "Khách", value: safeNum(kpi.customers).toLocaleString(), icon: Users },
+            ].map((item) => (
+              <div key={item.label} className="rounded-md border border-border bg-muted/45 p-4">
+                <item.icon className="mb-3 h-5 w-5 text-primary" />
+                <p className="text-xl font-extrabold">{item.value}</p>
+                <p className="text-xs font-bold text-muted-foreground">{item.label}</p>
               </div>
-            </CardContent>
-          </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {kpis.map((item) => (
+          <div key={item.title} className="retail-card group p-5 transition hover:-translate-y-1 hover:border-primary/30">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-muted-foreground">{item.title}</p>
+                <p className="mt-2 truncate text-2xl font-extrabold tracking-tight">{item.value}</p>
+              </div>
+              <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-md ${toneClasses[item.tone]}`}>
+                <item.icon className="h-6 w-6" />
+              </div>
+            </div>
+            <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
+              <span className="text-xs font-medium text-muted-foreground">{item.caption}</span>
+              {item.trend !== null ? (
+                <span className={`inline-flex items-center gap-1 text-xs font-extrabold ${item.up ? "text-emerald-600 dark:text-emerald-300" : "text-red-500"}`}>
+                  {item.up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                  {item.trend}
+                </span>
+              ) : (
+                <span className="text-xs font-extrabold text-muted-foreground">Live</span>
+              )}
+            </div>
+          </div>
         ))}
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <Card className="xl:col-span-2">
-          <CardHeader className="pb-2"><CardTitle className="text-lg">Biểu đồ doanh thu tuần</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={revenueChart}>
-                <defs>
-                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="name" className="text-xs" />
-                <YAxis className="text-xs" tickFormatter={(v) => `${(safeNum(v) / 1000000).toFixed(0)}tr`} />
-                <Tooltip formatter={(v) => [formatCurrency(v), "Doanh thu"]} />
-                <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorRev)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <section className="retail-card xl:col-span-2">
+          <div className="flex items-start justify-between gap-4 border-b border-border p-5">
+            <div>
+              <h2 className="text-lg font-extrabold">Doanh thu 7 ngày</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Xu hướng bán hàng theo ngày</p>
+            </div>
+            <Badge variant="secondary" className="font-extrabold">Revenue</Badge>
+          </div>
+          <div className="p-5">
+            {revenueChart.length > 0 ? (
+              <ResponsiveContainer width="100%" height={310}>
+                <AreaChart data={revenueChart}>
+                  <defs>
+                    <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#16a34a" stopOpacity={0.34} />
+                      <stop offset="95%" stopColor="#16a34a" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="name" className="text-xs" tickLine={false} axisLine={false} />
+                  <YAxis className="text-xs" tickLine={false} axisLine={false} tickFormatter={(value) => `${(safeNum(value) / 1000000).toFixed(0)}tr`} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Area type="monotone" dataKey="revenue" stroke="#16a34a" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="grid h-[310px] place-items-center rounded-md bg-muted/40 text-sm text-muted-foreground">Chưa có dữ liệu doanh thu</div>
+            )}
+          </div>
+        </section>
 
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-lg">Danh mục bán chạy</CardTitle></CardHeader>
-          <CardContent>
+        <section className="retail-card">
+          <div className="border-b border-border p-5">
+            <h2 className="text-lg font-extrabold">Danh mục bán chạy</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Tỷ trọng sản phẩm theo danh mục</p>
+          </div>
+          <div className="p-5">
             {categoryChart.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={310}>
                 <PieChart>
-                  <Pie data={categoryChart} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" label={({ name, percent }) => `${name} ${(safeNum(percent) * 100).toFixed(0)}%`}>
-                    {categoryChart.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  <Pie
+                    data={categoryChart}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={64}
+                    outerRadius={108}
+                    paddingAngle={4}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(safeNum(percent) * 100).toFixed(0)}%`}
+                  >
+                    {categoryChart.map((_, index) => (
+                      <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                    ))}
                   </Pie>
                   <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[300px] text-sm text-muted-foreground">Chưa có dữ liệu danh mục</div>
+              <div className="grid h-[310px] place-items-center rounded-md bg-muted/40 text-sm text-muted-foreground">Chưa có dữ liệu danh mục</div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </div>
 
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        {/* Recent Orders */}
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Đơn hàng gần đây</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/orders")}>Xem tất cả <ArrowRight className="h-4 w-4 ml-1" /></Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {recentOrders.map((o, i) => (
-                <div key={o.id || i} className="flex items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors">
-                  <div>
-                    <p className="text-sm font-medium font-mono">{displayId(o)}</p>
-                    <p className="text-xs text-muted-foreground">{o.createdAt ? new Date(o.createdAt).toLocaleString("vi-VN") : ""}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold">{formatCurrency(getAmount(o))}</p>
-                    <Badge variant={o.status === "COMPLETED" ? "success" : o.status === "CANCELLED" ? "destructive" : "secondary"} className="text-[10px]">
-                      {o.status === "COMPLETED" ? "Hoàn thành" : o.status === "CANCELLED" ? "Đã hủy" : o.status}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-              {recentOrders.length === 0 && <p className="p-5 text-sm text-muted-foreground text-center">Chưa có đơn hàng</p>}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <section className="retail-card overflow-hidden">
+          <div className="flex items-center justify-between gap-4 border-b border-border p-5">
+            <div>
+              <h2 className="text-lg font-extrabold">Đơn hàng gần đây</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Luồng giao dịch mới nhất</p>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Low Stock Alerts */}
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-amber-500" /> Cảnh báo tồn kho</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/inventory")}>Xem tất cả <ArrowRight className="h-4 w-4 ml-1" /></Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {lowStock.map((item, i) => (
-                <div key={getLowSku(item) || i} className="flex items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors">
-                  <div>
-                    <p className="text-sm font-medium font-mono">{getLowSku(item)}</p>
-                  </div>
-                  <Badge variant={getLowQty(item) <= 5 ? "destructive" : "warning"} className="font-bold">
-                    Còn {getLowQty(item)}
+            <Button variant="ghost" size="sm" onClick={() => navigate("/orders")}>
+              Xem tất cả <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+          <div className="divide-y divide-border">
+            {recentOrders.map((order, index) => (
+              <div key={order.id || index} className="flex items-center justify-between gap-4 px-5 py-4 transition hover:bg-muted/30">
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-sm font-extrabold">{displayId(order)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{order.createdAt ? new Date(order.createdAt).toLocaleString("vi-VN") : ""}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-extrabold">{formatCurrency(getAmount(order))}</p>
+                  <Badge variant={order.status === "COMPLETED" ? "success" : order.status === "CANCELLED" ? "destructive" : "secondary"} className="mt-1 text-[10px]">
+                    {order.status === "COMPLETED" ? "Hoàn thành" : order.status === "CANCELLED" ? "Đã hủy" : order.status}
                   </Badge>
                 </div>
-              ))}
-              {lowStock.length === 0 && <p className="p-5 text-sm text-muted-foreground text-center">Không có cảnh báo</p>}
+              </div>
+            ))}
+            {recentOrders.length === 0 && <p className="p-8 text-center text-sm text-muted-foreground">Chưa có đơn hàng</p>}
+          </div>
+        </section>
+
+        <section className="retail-card overflow-hidden">
+          <div className="flex items-center justify-between gap-4 border-b border-border p-5">
+            <div>
+              <h2 className="flex items-center gap-2 text-lg font-extrabold">
+                <AlertTriangle className="h-5 w-5 text-amber-500" /> Cảnh báo tồn kho
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">Các SKU cần kiểm tra trước</p>
             </div>
-          </CardContent>
-        </Card>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/inventory")}>
+              Xem tất cả <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+          <div className="divide-y divide-border">
+            {lowStock.map((item, index) => {
+              const qty = getLowQty(item)
+              return (
+                <div key={getLowSku(item) || index} className="flex items-center justify-between gap-4 px-5 py-4 transition hover:bg-muted/30">
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-10 w-10 place-items-center rounded-md bg-amber-500/10 text-amber-600">
+                      <Package className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="font-mono text-sm font-extrabold">{getLowSku(item)}</p>
+                      <p className="text-xs text-muted-foreground">Cần kiểm kho</p>
+                    </div>
+                  </div>
+                  <Badge variant={qty <= 5 ? "destructive" : "warning"} className="font-extrabold">
+                    Còn {qty}
+                  </Badge>
+                </div>
+              )
+            })}
+            {lowStock.length === 0 && <p className="p-8 text-center text-sm text-muted-foreground">Không có cảnh báo</p>}
+          </div>
+        </section>
       </div>
-      </>)}
     </div>
   )
 }

@@ -41,7 +41,9 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/refresh",
-                        "/auth/forgot-password", "/auth/reset-password").permitAll()
+                        "/auth/forgot-password", "/auth/reset-password",
+                        "/api/auth/login", "/api/auth/refresh",
+                        "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 .anyRequest().authenticated()
             )

@@ -8,11 +8,11 @@ export default function AdminLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="app-shell min-h-screen bg-background">
       <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
       <div className={cn("transition-all duration-300", sidebarCollapsed ? "ml-[68px]" : "ml-[260px]")}>
         <Header />
-        <main className="p-6">
+        <main className="relative p-5 lg:p-6">
           <Outlet />
         </main>
       </div>

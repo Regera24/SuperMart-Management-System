@@ -11,6 +11,16 @@ spring:
           # ── Routes ──
           routes:
             # Identity Service
+            - id: identity-api-auth
+              uri: lb://identity-service
+              predicates:
+                - Path=/api/auth/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: identityServiceCB
+                    fallbackUri: forward:/fallback/identity
+
             - id: identity-auth
               uri: lb://identity-service
               predicates:

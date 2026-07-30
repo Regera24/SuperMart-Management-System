@@ -10,6 +10,15 @@ const storeConfig = {
   slogan: "Siêu thị tiện lợi — Chất lượng vượt trội",
   description:
     "SuperMart cung cấp đa dạng sản phẩm từ thực phẩm tươi sống, đồ gia dụng đến đồ điện tử với giá cả hợp lý và dịch vụ chuyên nghiệp. Chúng tôi cam kết mang đến trải nghiệm mua sắm tốt nhất cho mọi gia đình Việt.",
+  heroImage:
+    "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1800&q=85",
+  loginImage:
+    "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1600&q=85",
+  experienceImages: [
+    "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=900&q=80",
+    "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=900&q=80",
+    "https://images.unsplash.com/photo-1579113800032-c38bd7635818?auto=format&fit=crop&w=900&q=80",
+  ],
 
   // ── Giờ mở cửa ───────────────────────────────────────────
   businessHours: [
@@ -56,6 +65,9 @@ const storeConfig = {
       description: "Gạo thơm dẻo hạt dài — đạt giải gạo ngon nhất thế giới",
       badge: "Best Seller",
       emoji: "🌾",
+      image:
+        "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=900&q=80",
+      category: "Thực phẩm khô",
     },
     {
       name: "Sữa tươi Vinamilk",
@@ -64,6 +76,9 @@ const storeConfig = {
       description: "Sữa tươi tiệt trùng không đường — bổ sung canxi mỗi ngày",
       badge: "Bán chạy",
       emoji: "🥛",
+      image:
+        "https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=900&q=80",
+      category: "Sữa & đồ uống",
     },
     {
       name: "Dầu ăn Neptune",
@@ -72,6 +87,9 @@ const storeConfig = {
       description: "Dầu ăn cao cấp chiết xuất từ đậu nành tự nhiên",
       badge: null,
       emoji: "🫒",
+      image:
+        "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=900&q=80",
+      category: "Gia vị",
     },
     {
       name: "Mì Hảo Hảo",
@@ -80,6 +98,9 @@ const storeConfig = {
       description: "Mì ăn liền vị tôm chua cay — thương hiệu quốc dân",
       badge: "Hot",
       emoji: "🍜",
+      image:
+        "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=900&q=80",
+      category: "Ăn nhanh",
     },
     {
       name: "Nước mắm Phú Quốc",
@@ -88,6 +109,9 @@ const storeConfig = {
       description: "Nước mắm truyền thống ủ 12 tháng, hương vị đậm đà",
       badge: "Premium",
       emoji: "🐟",
+      image:
+        "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80",
+      category: "Đặc sản",
     },
     {
       name: "Trà xanh Không Độ",
@@ -96,6 +120,9 @@ const storeConfig = {
       description: "Trà xanh tự nhiên thanh mát, giải khát tức thì",
       badge: null,
       emoji: "🍵",
+      image:
+        "https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=900&q=80",
+      category: "Giải khát",
     },
   ],
 
