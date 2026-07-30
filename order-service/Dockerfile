@@ -1,5 +1,5 @@
 # ── Stage 1: Build ──────────────────────────────────────
-FROM eclipse-temurin:21-jdk-alpine AS builder
+FROM maven:3.9.16-eclipse-temurin-21-alpine AS builder
 WORKDIR /workspace
 COPY pom.xml .
 RUN --mount=type=cache,target=/root/.m2 \

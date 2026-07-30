@@ -77,3 +77,11 @@ Thumbs.db
 *.swp
 *.tmp
 *~
+
+# =========================
+# Frontend / CI
+# =========================
+node_modules/
+dist/
+coverage/
+.scannerwork/

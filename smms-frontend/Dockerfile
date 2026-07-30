@@ -12,7 +12,7 @@ ENV VITE_API_URL=$VITE_API_URL
 
 # Cache node_modules layer (only re-runs when package files change)
 COPY package.json package-lock.json ./
-RUN npm ci --frozen-lockfile
+RUN npm ci
 
 # Copy source and build
 COPY . .
