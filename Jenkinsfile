@@ -138,7 +138,21 @@ pipeline {
 
     stage('Start CI dependencies') {
       steps {
-        sh 'docker compose -f "$COMPOSE_FILE_CI" up -d --wait'
+        script {
+          try {
+            sh 'docker compose -f "$COMPOSE_FILE_CI" up -d --wait'
+          } catch (err) {
+            sh 'docker compose -f "$COMPOSE_FILE_CI" ps || true'
+            sh 'docker compose -f "$COMPOSE_FILE_CI" logs --no-color --tail=200 kafka || true'
+            sh '''
+              KAFKA_CONTAINER="$(docker compose -f "$COMPOSE_FILE_CI" ps -q kafka)"
+              if [ -n "$KAFKA_CONTAINER" ]; then
+                docker inspect --format='{{json .State.Health}}' "$KAFKA_CONTAINER" || true
+              fi
+            '''
+            throw err
+          }
+        }
       }
     }
 
