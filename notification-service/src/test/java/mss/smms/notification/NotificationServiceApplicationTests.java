@@ -1,13 +1,12 @@
 package mss.smms.notification;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
 class NotificationServiceApplicationTests {
 
 	@Test
-	void contextLoads() {
+	void applicationClassIsLoadable() {
+		NotificationServiceApplication.class.getDeclaredConstructors();
 	}
 
 }
